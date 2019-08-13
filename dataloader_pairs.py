@@ -104,11 +104,11 @@ class Hardmining_datagenerator(keras.utils.Sequence):
             negative = process_image_pair(self.imagePaths2019[neg_index], self.imagePaths2019[neg_index+1])
 
             # add pairs to the batch
-            batchImages.append(np.stack([ancor, positive, negative]))
-            batchPairs_indexes.append([i, i, neg_index])
-            batchPairs_labels.append([1,0])
+            batchImages+=[[ancor, positive], [ancor, negative]]
+            batchPairs_indexes+=[[i, i], [i, neg_index]]
+            batchPairs_labels+=[1,0]
 
-        return batchImages, batchPairs_indexes, batchPairs_labels
+        return np.array(batchImages), np.array(batchPairs_indexes), np.array(batchPairs_labels)
 
     def addHardMiningIndexes(self, indexes):
         """ to add the hardMining indexes for the network training """
@@ -119,9 +119,12 @@ if __name__ == '__main__':
     topo_ortho_generator.getImagePaths()
 
     for img in range(1):
-        batch_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
+        batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
         # display an image just to check
-        a,p,n =  batch_images[0]
+        p = batchPairs_images[:,0]
+        n = batchPairs_images[:,1]
+        labels = batchPairs_labels
+       # print(a.shape)
         #show_image_triplet(a,p,n)
 
 
