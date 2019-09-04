@@ -13,23 +13,34 @@ from imutils import paths
 import keras
 
 def show_image_triplet(a,p,n):
-    fig = plt.figure(figsize=(5, 8))
+    """ this function shows the image triplet
+    a  - ancor
+    p - positive
+    n - negative """
+    fig = plt.figure(figsize=(8, 12))
     fig.add_subplot(3, 2, 1)
-    plt.imshow(a[:,:,:3])
+    plt.imshow(a[:,:,:3].astype('uint8'))
+    plt.title("A image")
     fig.add_subplot(3, 2, 2)
-    plt.imshow(a[:,:,-1])
+    plt.title("A vector")
+    plt.imshow(a[:,:,-1], cmap='gray', vmin=0, vmax=255)
 
 
     fig.add_subplot(3, 2, 3)
-    plt.imshow(p[:,:,:3])
+    plt.imshow(p[:,:,:3].astype('uint8'))
+    plt.title("P image")
     fig.add_subplot(3, 2, 4)
-    plt.imshow(p[:,:,-1])
+    plt.title("P vector")
+    plt.imshow(p[:,:,-1], cmap='gray', vmin=0, vmax=255)
+
 
     fig.add_subplot(3, 2, 5)
-    plt.imshow(n[:,:,:3])
+    plt.imshow(n[:,:,:3].astype('uint8'))
+    plt.title("N image")
     fig.add_subplot(3, 2, 6)
-    plt.imshow(n[:,:,-1])
-    plt.title("Ancor, Positive and Negative image")
+    plt.title("N vector")
+    plt.imshow(n[:,:,-1], cmap='gray', vmin=0, vmax=255)
+    plt.suptitle("Ancor, Positive and Negative image")
     plt.show()
 
 
@@ -42,13 +53,14 @@ def process_image_pair(img, lbl):
 
     # preprocess the image according to image net utils data
     # image = np.expand_dims(image, axis=0)
-    image = imagenet_utils.preprocess_input(image)
+    #image = imagenet_utils.preprocess_input(image)
 
+    # TODO: probably try to finish this function
     # preprocess the label image by creating an R,G,B, 1...N features image featuring
     # lbl_channels =  create_masks_from_rgb(lbl)
 
     # pre-process image by just making it a grayscale image
-    gray = np.expand_dims(np.mean(lbl, -1), axis=2)  # expand
+    gray = np.expand_dims((0.3 * lbl[:,:,0] + 0.59 * lbl[:,:,1] + 0.11 *  lbl[:,:,2]), axis=2)  # expand
 
     # concatenate the resulting images horizontally
     image = np.dstack((image, gray))
@@ -58,7 +70,7 @@ def process_image_pair(img, lbl):
 
 class Hardmining_datagenerator(keras.utils.Sequence):
     'Generates data for Keras'
-    def __init__(self, dataset_2019, dataset_2004, batch_size=32, n_channels_img=3, n_channel_lbl=1):
+    def __init__(self, dataset_2019, dataset_2004, batch_size=2, n_channels_img=3, n_channel_lbl=1):
         'Initialization'
         self.dataset_2019 = dataset_2019
         self.dataset_2004 = dataset_2004
@@ -92,14 +104,14 @@ class Hardmining_datagenerator(keras.utils.Sequence):
 
         i = batch_number # the image to process now
         ancor = process_image_pair(self.imagePaths2019[i], self.imagePaths2019[i+1])
-        positive = process_image_pair(self.imagePaths2004[i], self.imagePaths2004[i])
+        positive = process_image_pair(self.imagePaths2004[i], self.imagePaths2004[i+1])
         # for each image
         for j in range(0, self.batch_size):
             # find batch non-corresponding images
             neg_index = np.random.randint(1,self.total_images-2)
             if neg_index == i: #if it is the same image that the positive one
                 neg_index +=1
-            if neg_index%2 == 0: #I want my negative label to be an image and not the label
+            if neg_index%2 == 1: #I want my negative label to be an image and not the label
                 neg_index += 1
             negative = process_image_pair(self.imagePaths2019[neg_index], self.imagePaths2019[neg_index+1])
 
@@ -121,11 +133,16 @@ if __name__ == '__main__':
     for img in range(1):
         batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
         # display an image just to check
-        p = batchPairs_images[:,0]
-        n = batchPairs_images[:,1]
+        pos_idx = np.where(batchPairs_labels==1)
+        neg_idx = np.where(batchPairs_labels==0)
+
+        a = np.squeeze(batchPairs_images[pos_idx,0])
+        p = np.squeeze(batchPairs_images[pos_idx,1])
+        n = np.squeeze(batchPairs_images[neg_idx,1])
         labels = batchPairs_labels
        # print(a.shape)
-        #show_image_triplet(a,p,n)
+        random_example = random.randint(0,topo_ortho_generator.batch_size)
+        show_image_triplet(a[random_example],p[random_example],n[random_example])
 
 
 

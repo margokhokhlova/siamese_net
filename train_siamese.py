@@ -21,10 +21,19 @@ def contrastive_loss(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
-    margin = 1
+    margin = 100
     sqaure_pred = K.square(y_pred)
     margin_square = K.square(K.maximum(margin - y_pred, 0))
     return K.mean(y_true * sqaure_pred + (1 - y_true) * margin_square)
+
+def contrastive_loss_per_pair(y_true, y_pred):
+    '''Contrastive loss from Hadsell-et-al.'06
+    http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+    '''
+    margin = 100
+    sqaure_pred = K.square(y_pred)
+    margin_square = K.square(K.maximum(margin - y_pred, 0))
+    return (y_true * sqaure_pred + (1 - y_true) * margin_square).eval()
 
 
 
@@ -44,7 +53,7 @@ input_b = Input(shape=input_shape)
 # the weights of the network
 # will be shared across the two branches
 processed_a = Activation('relu')(base_model(input_a))
-processed_b = Activation('relu') (base_model(input_b))
+processed_b = Activation('relu')(base_model(input_b))
 
 # and then the regression based on two outputs (here subtraction)
 distance = Lambda(euclidean_distance,
@@ -57,12 +66,12 @@ model.summary()
 optimizer = Adam(lr=0.005, beta_1=0.95, beta_2=0.989, epsilon=None, decay=0.00000001, amsgrad=True)
 model.compile(loss=contrastive_loss, optimizer=optimizer, metrics=['acc'])
 
-for img in range(topo_ortho_generator.total_images): # go th
+for img in range(0, 1000, 2): # go th  topo_ortho_generator.total_images
     batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
     # before each new epoch, do the hard mining
-    y_pred = model.predict_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]])
-    print(y_pred.shape)
-    print(batchPairs_labels.shape)
-    test_loss = contrastive_loss(batchPairs_labels, y_pred)
+    #y_pred = model.predict_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]]) # temp solution, tp check later on
+    #test_loss = contrastive_loss_per_pair(batchPairs_labels,y_pred)
+    # TODO: add the batch modification to do hard mining
+    model.train_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]], batchPairs_labels)
 
 
