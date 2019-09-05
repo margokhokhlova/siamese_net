@@ -6,7 +6,9 @@ from keras.layers import Input, Dense,  Lambda, Activation
 from keras.models import Model
 from keras import backend as K
 # main file to train the siamese network
-
+import numpy as np
+from keras.callbacks import TensorBoard
+from tensorboard_utils.tensorboard_utils import write_log
 
 def euclidean_distance(vects):
     x, y = vects
@@ -30,12 +32,18 @@ def contrastive_loss_per_pair(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
-    margin = 100
+    margin = 50
     sqaure_pred = K.square(y_pred)
     margin_square = K.square(K.maximum(margin - y_pred, 0))
     return (y_true * sqaure_pred + (1 - y_true) * margin_square).eval()
 
 
+def compute_accuracy(y_true, y_pred):
+    '''Compute classification accuracy with a fixed threshold on distances.
+    So far the threshold is 200, to be estimated correctly
+    '''
+    pred = y_pred.ravel() <170
+    return np.mean(pred == y_true)
 
 # get the data
 topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle',
@@ -66,12 +74,26 @@ model.summary()
 optimizer = Adam(lr=0.005, beta_1=0.95, beta_2=0.989, epsilon=None, decay=0.00000001, amsgrad=True)
 model.compile(loss=contrastive_loss, optimizer=optimizer, metrics=['acc'])
 
-for img in range(0, 1000, 2): # go th  topo_ortho_generator.total_images
+
+#tboard = TensorBoard(log_dir='logs/', histogram_freq=0,
+#          write_graph=True)
+
+log_path = './logs'
+callback = TensorBoard(log_path)
+callback.set_model(model)
+train_names = ['train_loss', 'acc']
+
+for img in range(0, 10000, 2): # go th  topo_ortho_generator.total_images
     batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
     # before each new epoch, do the hard mining
-    #y_pred = model.predict_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]]) # temp solution, tp check later on
+    # y_pred = model.predict_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]]) # temp solution, tp check later on
     #test_loss = contrastive_loss_per_pair(batchPairs_labels,y_pred)
     # TODO: add the batch modification to do hard mining
-    model.train_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]], batchPairs_labels)
+    logs = model.train_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]], batchPairs_labels)
+    write_log(callback, train_names, logs,  img)
+    # compute final accuracy on the training  set
+    # tr_acc = compute_accuracy(batchPairs_labels, y_pred)
+    # print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
+
 
 
