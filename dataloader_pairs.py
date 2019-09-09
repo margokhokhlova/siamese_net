@@ -70,7 +70,7 @@ def process_image_pair(img, lbl):
 
 class Hardmining_datagenerator(keras.utils.Sequence):
     'Generates data for Keras'
-    def __init__(self, dataset_2019, dataset_2004, batch_size=2, n_channels_img=3, n_channel_lbl=1):
+    def __init__(self, dataset_2019, dataset_2004, batch_size=3, n_channels_img=3, n_channel_lbl=1):
         'Initialization'
         self.dataset_2019 = dataset_2019
         self.dataset_2004 = dataset_2004

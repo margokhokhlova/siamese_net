@@ -2,7 +2,7 @@ from keras.applications import ResNet50
 
 from keras.layers import GlobalMaxPooling2D, Dense
 from keras.models import Model,  Sequential, Input
-
+from keras.applications import imagenet_utils
 import argparse
 
 # construct the argument parser and parse the arguments
@@ -19,7 +19,7 @@ pooling = args["pooling"]
 
 
 
-def get_model (H,W,C, pooling =True, weights = 'imagenet'):
+def get_model (H,W,C, pooling =True, weights = 'imagenet', fusion = 'conv'):
     ''' Loads the model, the core is Resnet50, the output of the last covolutional layer is the output,
     either with or without maxpooling, pre-trained or not.
     Parameters:
@@ -34,6 +34,12 @@ def get_model (H,W,C, pooling =True, weights = 'imagenet'):
     # variable
     print("[INFO] loading network...")
     model_top = Sequential()
+
+    if fusion != 'conv':
+        model_top.add(Dense(3, activation=None, input_shape=(H,W,C)))
+    elif fusion == 'conv':
+        model_top.add(Conv2D(filters=3, kernel_size=(1,1), strides=(1, 1), padding = 'same', input_shape=(H,W,C)))
+        model_top.add(Lambda(imagenet_utils.preprocess_input)) # custom pre-processing layer
     model_top.add(Dense(3, activation=None, input_shape=(H,W,C)))
     baseModel = ResNet50(weights=weights, include_top=False)
     model_top.add(baseModel)
@@ -52,6 +58,9 @@ def get_model (H,W,C, pooling =True, weights = 'imagenet'):
 
     model.summary()
     return model
+
+
+
 
 
 
