@@ -2,18 +2,32 @@ from model_for_siamese import get_model
 from dataloader_pairs import Hardmining_datagenerator
 from keras.optimizers import Adam
 from keras.losses import binary_crossentropy
-from keras.layers import Input, Dense,  Lambda, Activation
+from keras.layers import Input, Dense,  Lambda, Activation, BatchNormalization
+
 from keras.models import Model
 from keras import backend as K
 # main file to train the siamese network
 import numpy as np
 from keras.callbacks import TensorBoard
 from tensorboard_utils.tensorboard_utils import write_log
+from optimizers.lookAhead import  Lookahead
 
 def euclidean_distance(vects):
     x, y = vects
+    # normalization layer ?
     sum_square = K.sum(K.square(x - y), axis=1, keepdims=True)
     return K.sqrt(K.maximum(sum_square, K.epsilon()))
+
+def cosine_distance(vects):
+    ''' cosine distance implementation with normalization:
+	https://stackoverflow.com/questions/51003027/computing-cosine-similarity-between-two-tensors-in-keras
+	'''
+    x, y = vects
+    x = K.l2_normalize(x, axis=-1)
+    y = K.l2_normalize(y, axis=-1)
+    return K.sum(x * y, axis=-1, keepdims=True)
+
+
 
 def eucl_dist_output_shape(shapes):
     shape1, shape2 = shapes
@@ -23,7 +37,7 @@ def contrastive_loss(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
-    margin = 100
+    margin = 1
     sqaure_pred = K.square(y_pred)
     margin_square = K.square(K.maximum(margin - y_pred, 0))
     return K.mean(y_true * sqaure_pred + (1 - y_true) * margin_square)
@@ -32,7 +46,7 @@ def contrastive_loss_per_pair(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
-    margin = 50
+    margin = 1
     sqaure_pred = K.square(y_pred)
     margin_square = K.square(K.maximum(margin - y_pred, 0))
     return (y_true * sqaure_pred + (1 - y_true) * margin_square).eval()
@@ -40,10 +54,17 @@ def contrastive_loss_per_pair(y_true, y_pred):
 
 def compute_accuracy(y_true, y_pred):
     '''Compute classification accuracy with a fixed threshold on distances.
-    So far the threshold is 200, to be estimated correctly
+    So far the threshold is 0.5, to be estimated correctly
     '''
-    pred = y_pred.ravel() <170
+    pred = y_pred.ravel() <0.5
     return np.mean(pred == y_true)
+
+def acc_keras(y_true, y_pred):
+    '''Compute classification accuracy with a fixed threshold on distances.
+    So far the threshold is 0.5, to be estimated correctly
+    '''
+    pred = K.cast(K.squeeze(y_pred < 0.5, axis = 1),dtype='float32')
+    return K.mean(K.equal(y_true, pred))
 
 # get the data
 topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle',
@@ -60,11 +81,11 @@ input_b = Input(shape=input_shape)
 # because we re-use the same instance `base_network = model`,
 # the weights of the network
 # will be shared across the two branches
-processed_a = Activation('relu')(base_model(input_a))
-processed_b = Activation('relu')(base_model(input_b))
+processed_a = base_model(input_a)
+processed_b = base_model(input_b)
 
 # and then the regression based on two outputs (here subtraction)
-distance = Lambda(euclidean_distance,
+distance = Lambda(cosine_distance,
                   output_shape= eucl_dist_output_shape)([processed_a, processed_b])
 
 
@@ -72,8 +93,10 @@ distance = Lambda(euclidean_distance,
 model = Model([input_a, input_b], distance)
 model.summary()
 optimizer = Adam(lr=0.005, beta_1=0.95, beta_2=0.989, epsilon=None, decay=0.00000001, amsgrad=True)
-model.compile(loss=contrastive_loss, optimizer=optimizer, metrics=['acc'])
+model.compile(loss=contrastive_loss, optimizer=optimizer, metrics= [acc_keras])
 
+lookahead = Lookahead(k=5, alpha=0.5) # Initialize Lookahead
+lookahead.inject(model) # add into model
 
 #tboard = TensorBoard(log_dir='logs/', histogram_freq=0,
 #          write_graph=True)
@@ -81,19 +104,24 @@ model.compile(loss=contrastive_loss, optimizer=optimizer, metrics=['acc'])
 log_path = './logs'
 callback = TensorBoard(log_path)
 callback.set_model(model)
-train_names = ['train_loss', 'acc']
+train_names = ['train_loss', 'acc with threshold 0.5']
 
-for img in range(0, 10000, 2): # go th  topo_ortho_generator.total_images
-    batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
-    # before each new epoch, do the hard mining
-    # y_pred = model.predict_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]]) # temp solution, tp check later on
-    #test_loss = contrastive_loss_per_pair(batchPairs_labels,y_pred)
-    # TODO: add the batch modification to do hard mining
-    logs = model.train_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]], batchPairs_labels)
-    write_log(callback, train_names, logs,  img)
-    # compute final accuracy on the training  set
-    # tr_acc = compute_accuracy(batchPairs_labels, y_pred)
-    # print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
+for j in range(3): #3 epochs
+    for img in range(0, 12000, 2): # go th  topo_ortho_generator.total_images
+        batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
+        # before each new epoch, do the hard mining
+        y_pred = model.predict_on_batch(
+            [batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
+        #test_loss = contrastive_loss_per_pair(batchPairs_labels,y_pred)
+        # TODO: add the batch modification to do hard mining
+        logs = model.train_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]], batchPairs_labels)
+        write_log(callback, train_names, logs,  img/2 + j*6000)
+        # compute final accuracy on the training  set
+        if img%2000==0:
+            y_pred = model.predict_on_batch([batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
+            tr_acc = compute_accuracy(batchPairs_labels, y_pred)
+            print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
+    model.save_weights('models/siamese_bw' + str(j)+'_weights.h5')
 
 
 

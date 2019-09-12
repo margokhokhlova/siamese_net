@@ -1,6 +1,6 @@
 from keras.applications import ResNet50
 
-from keras.layers import GlobalMaxPooling2D, Dense
+from keras.layers import GlobalMaxPooling2D, Dense, Conv2D, Lambda
 from keras.models import Model,  Sequential, Input
 from keras.applications import imagenet_utils
 import argparse
@@ -38,7 +38,7 @@ def get_model (H,W,C, pooling =True, weights = 'imagenet', fusion = 'conv'):
     if fusion != 'conv':
         model_top.add(Dense(3, activation=None, input_shape=(H,W,C)))
     elif fusion == 'conv':
-        model_top.add(Conv2D(filters=3, kernel_size=(1,1), strides=(1, 1), padding = 'same', input_shape=(H,W,C)))
+        model_top.add(Conv2D(filters=3, kernel_size=(1,1), strides=(1, 1), activation = 'relu', padding = 'same', input_shape=(H,W,C)))
         model_top.add(Lambda(imagenet_utils.preprocess_input)) # custom pre-processing layer
     model_top.add(Dense(3, activation=None, input_shape=(H,W,C)))
     baseModel = ResNet50(weights=weights, include_top=False)
