@@ -12,6 +12,15 @@ from keras.callbacks import TensorBoard
 from tensorboard_utils.tensorboard_utils import write_log
 from optimizers.lookAhead import  Lookahead
 
+import tensorflow as tf
+import os
+
+# The GPU id to use, usually either "0" or "1";
+os.environ["CUDA_VISIBLE_DEVICES"]="1";
+config = tf.ConfigProto()
+session = tf.Session(config=config)
+K.set_session(session)
+
 def euclidean_distance(vects):
     x, y = vects
     # normalization layer ?
@@ -25,7 +34,8 @@ def cosine_distance(vects):
     x, y = vects
     x = K.l2_normalize(x, axis=-1)
     y = K.l2_normalize(y, axis=-1)
-    return K.sum(x * y, axis=-1, keepdims=True)
+    return K.sum(1 - x * y, axis=-1, keepdims=True) #1 - is taken from distance cosine correlation sklearn
+
 
 
 
@@ -36,12 +46,12 @@ def eucl_dist_output_shape(shapes):
 def contrastive_loss(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+    modified by myself to match sklearn impelemntation
     '''
     margin = 1
     sqaure_pred = K.square(y_pred)
     margin_square = K.square(K.maximum(margin - y_pred, 0))
-    return K.mean(y_true * sqaure_pred + (1 - y_true) * margin_square)
-
+    return  K.mean(y_true * sqaure_pred + (1 - y_true) * margin_square)
 def contrastive_loss_per_pair(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
@@ -68,7 +78,7 @@ def acc_keras(y_true, y_pred):
 
 # get the data
 topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle',
-                                                dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004')
+                                                dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004',n_channels_img=3, n_channel_lbl=1)
 topo_ortho_generator.getImagePaths()
 # get one test batch
 batch_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(0)
@@ -104,9 +114,9 @@ lookahead.inject(model) # add into model
 log_path = './logs'
 callback = TensorBoard(log_path)
 callback.set_model(model)
-train_names = ['train_loss', 'acc with threshold 0.5']
+train_names = ['train_loss cosine modif', 'acc with threshold 0.5 cosine modif']
 
-for j in range(3): #3 epochs
+for j in range(10): # num of epochs
     for img in range(0, 12000, 2): # go th  topo_ortho_generator.total_images
         batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
         # before each new epoch, do the hard mining
@@ -117,11 +127,11 @@ for j in range(3): #3 epochs
         logs = model.train_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]], batchPairs_labels)
         write_log(callback, train_names, logs,  img/2 + j*6000)
         # compute final accuracy on the training  set
-        if img%2000==0:
+        if img%3000==0:
             y_pred = model.predict_on_batch([batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
             tr_acc = compute_accuracy(batchPairs_labels, y_pred)
             print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
-    model.save_weights('models/siamese_bw' + str(j)+'_weights.h5')
+    model.save_weights('models/siamese_bw_cosine' + str(j)+'_weights.h5')
 
 
 
