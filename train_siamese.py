@@ -24,17 +24,23 @@ K.set_session(session)
 def euclidean_distance(vects):
     x, y = vects
     # normalization layer ?
+    x = K.l2_normalize(x, axis=1)
+    y = K.l2_normalize(y, axis=1)
+    
     sum_square = K.sum(K.square(x - y), axis=1, keepdims=True)
     return K.sqrt(K.maximum(sum_square, K.epsilon()))
 
 def cosine_distance(vects):
     ''' cosine distance implementation with normalization:
-	https://stackoverflow.com/questions/51003027/computing-cosine-similarity-between-two-tensors-in-keras
+    reproduced from sklearn
+	https://github.com/scikit-learn/scikit-learn/blob/1495f6924/sklearn/metrics/pairwise.py#L655
+
 	'''
     x, y = vects
-    x = K.l2_normalize(x, axis=-1)
-    y = K.l2_normalize(y, axis=-1)
-    return K.sum(1 - x * y, axis=-1, keepdims=True) #1 - is taken from distance cosine correlation sklearn
+    x = K.l2_normalize(x, axis=1)
+    y = K.l2_normalize(y, axis=1)
+
+    return K.sum((K.dot(x,K.transpose(y))*-1 + 1), axis =1) #1 - is taken from distance cosine correlation sklearn
 
 
 
@@ -73,7 +79,7 @@ def acc_keras(y_true, y_pred):
     '''Compute classification accuracy with a fixed threshold on distances.
     So far the threshold is 0.5, to be estimated correctly
     '''
-    pred = K.cast(K.squeeze(y_pred < 0.5, axis = 1),dtype='float32')
+    pred = K.cast(y_pred < 0.5,dtype='float32')
     return K.mean(K.equal(y_true, pred))
 
 # get the data
@@ -131,6 +137,7 @@ for j in range(10): # num of epochs
             y_pred = model.predict_on_batch([batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
             tr_acc = compute_accuracy(batchPairs_labels, y_pred)
             print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
+
     model.save_weights('models/siamese_bw_cosine' + str(j)+'_weights.h5')
 
 
