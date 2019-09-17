@@ -4,6 +4,8 @@ from keras.optimizers import Adam
 from keras.losses import binary_crossentropy
 from keras.layers import Input, Dense,  Lambda, Activation, BatchNormalization
 
+from tensorflow.keras.losses import cosine as cosineTF
+
 from keras.models import Model
 from keras import backend as K
 # main file to train the siamese network
@@ -16,7 +18,7 @@ import tensorflow as tf
 import os
 
 # The GPU id to use, usually either "0" or "1";
-os.environ["CUDA_VISIBLE_DEVICES"]="1";
+os.environ["CUDA_VISIBLE_DEVICES"]="0";
 config = tf.ConfigProto()
 session = tf.Session(config=config)
 K.set_session(session)
@@ -26,8 +28,8 @@ def euclidean_distance(vects):
     # normalization layer ?
     x = K.l2_normalize(x, axis=1)
     y = K.l2_normalize(y, axis=1)
-    
-    sum_square = K.sum(K.square(x - y), axis=1, keepdims=True)
+
+    sum_square = K.sum( K.square(x - y), axis=1, keepdims=True)
     return K.sqrt(K.maximum(sum_square, K.epsilon()))
 
 def cosine_distance(vects):
@@ -37,12 +39,11 @@ def cosine_distance(vects):
 
 	'''
     x, y = vects
-    x = K.l2_normalize(x, axis=1)
-    y = K.l2_normalize(y, axis=1)
+    # x = K.l2_normalize(x, axis=-1)
+    # y = K.l2_normalize(y, axis=-1)
 
-    return K.sum((K.dot(x,K.transpose(y))*-1 + 1), axis =1) #1 - is taken from distance cosine correlation sklearn
-
-
+    # return K.dot(x,K.transpose(y)) #1 - is taken from distance cosine correlation sklearn
+    return cosineTF(x,y)
 
 
 def eucl_dist_output_shape(shapes):
@@ -120,7 +121,7 @@ lookahead.inject(model) # add into model
 log_path = './logs'
 callback = TensorBoard(log_path)
 callback.set_model(model)
-train_names = ['train_loss cosine modif', 'acc with threshold 0.5 cosine modif']
+train_names = ['train_loss cosine', 'acc with threshold 0.5 cosine']
 
 for j in range(10): # num of epochs
     for img in range(0, 12000, 2): # go th  topo_ortho_generator.total_images
