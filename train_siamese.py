@@ -36,14 +36,15 @@ def cosine_distance(vects):
     ''' cosine distance implementation with normalization:
     reproduced from sklearn
 	https://github.com/scikit-learn/scikit-learn/blob/1495f6924/sklearn/metrics/pairwise.py#L655
+    Cosine distance is defined as 1.0 minus the cosine similarity.
 
 	'''
     x, y = vects
     # x = K.l2_normalize(x, axis=-1)
     # y = K.l2_normalize(y, axis=-1)
 
-    # return K.dot(x,K.transpose(y)) #1 - is taken from distance cosine correlation sklearn
-    return cosineTF(x,y)
+    # return K.dot(x,K.transpose(y)) #1 - is taken from distance cosine  sklearn (1- cos similarity)
+    return 1.0 - cosineTF(x,y) # Cosine distance is defined as 1.0 minus the cosine similarity.
 
 
 def eucl_dist_output_shape(shapes):
@@ -80,19 +81,21 @@ def acc_keras(y_true, y_pred):
     '''Compute classification accuracy with a fixed threshold on distances.
     So far the threshold is 0.5, to be estimated correctly
     '''
-    pred = K.cast(y_pred < 0.5,dtype='float32')
+    pred = K.cast(y_pred < 0.4,dtype='float32')
     return K.mean(K.equal(y_true, pred))
 
+im_size = (256,256)
 # get the data
 topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle',
-                                                dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004',n_channels_img=3, n_channel_lbl=1)
+                                                dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004',
+                                                batch_size=10, n_channels_img=3, n_channel_lbl=1, im_size = im_size)
 topo_ortho_generator.getImagePaths()
 # get one test batch
 batch_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(0)
 input_shape = batch_images[0,0].shape
 
 # get the model
-base_model = get_model(512, 512, 4, pooling=True, weights='imagenet')
+base_model = get_model(im_size[0], im_size[1], 4, pooling=True, weights='imagenet')
 input_a = Input(shape=input_shape)
 input_b = Input(shape=input_shape)
 # because we re-use the same instance `base_network = model`,
@@ -109,7 +112,7 @@ distance = Lambda(cosine_distance,
 
 model = Model([input_a, input_b], distance)
 model.summary()
-optimizer = Adam(lr=0.005, beta_1=0.95, beta_2=0.989, epsilon=None, decay=0.00000001, amsgrad=True)
+optimizer = Adam(lr=0.005, epsilon=None)
 model.compile(loss=contrastive_loss, optimizer=optimizer, metrics= [acc_keras])
 
 lookahead = Lookahead(k=5, alpha=0.5) # Initialize Lookahead
@@ -121,10 +124,10 @@ lookahead.inject(model) # add into model
 log_path = './logs'
 callback = TensorBoard(log_path)
 callback.set_model(model)
-train_names = ['train_loss cosine', 'acc with threshold 0.5 cosine']
+train_names = ['train_loss small', 'acc with threshold 0.4 small']
 
 for j in range(10): # num of epochs
-    for img in range(0, 12000, 2): # go th  topo_ortho_generator.total_images
+    for img in range(0, 12000, 10): # go th  topo_ortho_generator.total_images
         batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
         # before each new epoch, do the hard mining
         y_pred = model.predict_on_batch(
@@ -132,14 +135,14 @@ for j in range(10): # num of epochs
         #test_loss = contrastive_loss_per_pair(batchPairs_labels,y_pred)
         # TODO: add the batch modification to do hard mining
         logs = model.train_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]], batchPairs_labels)
-        write_log(callback, train_names, logs,  img/2 + j*6000)
+        write_log(callback, train_names, logs,  img/10 + j*1200)
         # compute final accuracy on the training  set
         if img%3000==0:
             y_pred = model.predict_on_batch([batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
             tr_acc = compute_accuracy(batchPairs_labels, y_pred)
             print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
 
-    model.save_weights('models/siamese_bw_cosine' + str(j)+'_weights.h5')
+    model.save_weights('models/siamese_bw_small' + str(j)+'_weights.h5')
 
 
 
