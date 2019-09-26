@@ -44,10 +44,10 @@ def show_image_triplet(a,p,n):
     plt.show()
 
 
-def process_image_pair(img, lbl):
+def process_image_pair(img, lbl, n_channels_lbl, im_size):
     """ fucntion just create a single RGBI image from the initial image + semantic image"""
-    image = load_img(img, target_size=(512, 512))
-    lbl = load_img(lbl, target_size=(512, 512))
+    image = load_img(img, target_size=im_size)
+    lbl = load_img(lbl, target_size=im_size)
     image = img_to_array(image)
     lbl = np.rot90(lbl, k=1, axes=(1, 0))  # this line turns the image 90 clockwise, needed for IGN data
 
@@ -59,21 +59,26 @@ def process_image_pair(img, lbl):
     # preprocess the label image by creating an R,G,B, 1...N features image featuring
     # lbl_channels =  create_masks_from_rgb(lbl)
 
+    if n_channels_lbl == 1:
     # pre-process image by just making it a grayscale image
-    gray = np.expand_dims((0.3 * lbl[:,:,0] + 0.59 * lbl[:,:,1] + 0.11 *  lbl[:,:,2]), axis=2)  # expand
-
+        lbl = np.expand_dims((0.3 * lbl[:,:,0] + 0.59 * lbl[:,:,1] + 0.11 *  lbl[:,:,2]), axis=2)  # expand
+    else:
+        lbl = imagenet_utils.preprocess_input(image)
+        image = imagenet_utils.preprocess_input(image)
+    # else keep color image for the moment
     # concatenate the resulting images horizontally
-    image = np.dstack((image, gray))
+    image = np.dstack((image, lbl))
     #image = np.expand_dims(image, axis=0)
     return image
 
 
 class Hardmining_datagenerator(keras.utils.Sequence):
     'Generates data for Keras'
-    def __init__(self, dataset_2019, dataset_2004, batch_size=3, n_channels_img=3, n_channel_lbl=1):
+    def __init__(self, dataset_2019, dataset_2004, batch_size=4, n_channels_img=3, n_channel_lbl=1, im_size = (512,512)):
         'Initialization'
         self.dataset_2019 = dataset_2019
         self.dataset_2004 = dataset_2004
+        self.im_size = im_size
         self.batch_size = batch_size
         self.n_channels_img = n_channels_img
         self.n_channels_lbl = n_channel_lbl
@@ -103,17 +108,17 @@ class Hardmining_datagenerator(keras.utils.Sequence):
 
 
         i = batch_number # the image to process now
-        ancor = process_image_pair(self.imagePaths2019[i], self.imagePaths2019[i+1])
-        positive = process_image_pair(self.imagePaths2004[i], self.imagePaths2004[i+1])
+        ancor = process_image_pair(self.imagePaths2019[i], self.imagePaths2019[i+1], self.n_channels_lbl, self.im_size)
+        positive = process_image_pair(self.imagePaths2004[i], self.imagePaths2004[i+1],self.n_channels_lbl, self.im_size)
         # for each image
         for j in range(0, self.batch_size):
             # find batch non-corresponding images
-            neg_index = np.random.randint(1,self.total_images-2)
+            neg_index = np.random.randint(0,self.total_images-2)
             if neg_index == i: #if it is the same image that the positive one
                 neg_index +=1
             if neg_index%2 == 1: #I want my negative label to be an image and not the label
                 neg_index += 1
-            negative = process_image_pair(self.imagePaths2019[neg_index], self.imagePaths2019[neg_index+1])
+            negative = process_image_pair(self.imagePaths2019[neg_index], self.imagePaths2019[neg_index+1],self.n_channels_lbl, self.im_size)
 
             # add pairs to the batch
             batchImages+=[[ancor, positive], [ancor, negative]]
@@ -124,7 +129,31 @@ class Hardmining_datagenerator(keras.utils.Sequence):
 
     def addHardMiningIndexes(self, indexes):
         """ to add the hardMining indexes for the network training """
-        self.hard_mining_indexes.vstack(indexes)
+        self.hard_mining_indexes = indexes
+
+    def __getitem__(self, index):
+        'Generate one batch of data'
+        # Generate indexes of the batch
+        i = self.hard_mining_indexes.keys[index]*2
+        hard_indexes = self.hard_mining_indexes[index]*2
+        batchImages = []
+        batchPairs_labels = []
+        ancor = process_image_pair(self.imagePaths2019[i], self.imagePaths2019[i + 1], self.n_channels_lbl,
+                                   self.im_size)
+        positive = process_image_pair(self.imagePaths2004[i], self.imagePaths2004[i + 1], self.n_channels_lbl,
+                                      self.im_size)
+        for j in hard_indexes:
+            # find batch non-corresponding images
+
+            negative = process_image_pair(self.imagePaths2019[j], self.imagePaths2019[j+1],self.n_channels_lbl, self.im_size)
+
+            # add pairs to the batch
+            batchImages+=[[ancor, positive], [ancor, negative]]
+            batchPairs_labels+=[1,0]
+
+        return np.array(batchImages), np.array(batchPairs_labels)
+
+
 
 if __name__ == '__main__':
     topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle', dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004')

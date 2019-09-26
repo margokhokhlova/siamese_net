@@ -6,16 +6,16 @@ from keras.applications import imagenet_utils
 import argparse
 
 # construct the argument parser and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-imsize", "--img-size", default = 512, help="Input Image dimensions")
-ap.add_argument("-c", "--channels", type=int, default=3,
-    help="number of channels in the image: RGB = 3, RGBI = 4, etc")
-ap.add_argument("-p", "--pooling", type=bool, default=True,
-    help="with max pool or no?")
-args = vars(ap.parse_args())
-H = W = args['img_size']
-C = args['channels']
-pooling = args["pooling"]
+# ap = argparse.ArgumentParser()
+# ap.add_argument("-imsize", "--img-size", default = 512, help="Input Image dimensions")
+# ap.add_argument("-c", "--channels", type=int, default=3,
+#     help="number of channels in the image: RGB = 3, RGBI = 4, etc")
+# ap.add_argument("-p", "--pooling", type=bool, default=True,
+#     help="with max pool or no?")
+# args = vars(ap.parse_args())
+# H = W = args['img_size']
+# C = args['channels']
+# pooling = args["pooling"]
 
 
 
@@ -62,6 +62,14 @@ def get_model (H,W,C, pooling =True, weights = 'imagenet', fusion = 'conv'):
         shape_feat = 16 * 16 * 2048
 
     model.summary()
+
+    for l in model.layers:
+        l.trainable = True
+        # if l.name == 'resnet50':
+        #     l.trainable = False
+        print(l.name, l.trainable)
+
+
     return model
 
 

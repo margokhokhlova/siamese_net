@@ -35,6 +35,25 @@ def make_image(tensor):
                             colorspace=channel,
                             encoded_image_string=image_string)
 
+def weight_visualization(tensor):
+    """
+    Convert an numpy representation image to Image protobuf.
+    Copied from https://github.com/lanpa/tensorboard-pytorch/
+    """
+    height, width, channel = tensor.shape
+    print(tensor)
+    image = Image.fromarray(tensor.astype('float32'))  # TODO: maybe float ?
+
+    output = io.BytesIO()
+    image.save(output, format='JPEG')
+    image_string = output.getvalue()
+    output.close()
+
+    return tf.Summary.Image(height=height,
+                            width=width,
+                            colorspace=channel,
+                            encoded_image_string=image_string)
+
 
 class TensorBoardImage(Callback):
     def __init__(self, tag):

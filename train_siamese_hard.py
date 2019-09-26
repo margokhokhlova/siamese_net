@@ -1,12 +1,13 @@
 from model_for_siamese import get_model
-from dataloader_pairs import Hardmining_datagenerator
+from dataloader_pairs import Hardmining_datagenerator, show_image_triplet
 from keras.optimizers import Adam
 from keras.losses import binary_crossentropy
 from keras.layers import Input, Dense,  Lambda, Activation, BatchNormalization
 from sklearn.preprocessing import normalize
 from tensorflow.keras.losses import cosine as cosineTF
-
+import random
 from keras.models import Model
+from  keras.activations import relu
 from keras import backend as K
 # main file to train the siamese network
 import numpy as np
@@ -27,7 +28,7 @@ K.set_session(session)
 def euclidean_distance(vects):
     x, y = vects
     # normalization layer ?
-    x = K.l2_normalize(x, axis=1) # batchnorm
+    x = K.l2_normalize(x, axis=1)
     y = K.l2_normalize(y, axis=1)
 
     sum_square = K.sum( K.square(x - y), axis=1, keepdims=True)
@@ -128,43 +129,41 @@ model.summary()
 optimizer = Adam(lr=0.008, epsilon=None, decay =0.000000000001)
 model.compile(loss=contrastive_loss, optimizer=optimizer, metrics= [acc_keras])
 
-# lookahead = Lookahead(k=5, alpha=0.5) # Initialize Lookahead
-# lookahead.inject(model) # add into model
 
-#tboard = TensorBoard(log_dir='logs/', histogram_freq=0,
-#          write_graph=True)
-
-log_path = './logs/euclidean_freezeds'
-callback = TensorBoard(log_path)
-callback.set_model(model)
-train_names = ['train_loss euclidean', 'acc with threshold 0.5 euclidean']
-epoch_logs = [0,0]
-av_counter = 0
-for j in range(5): # num of epochs
-    for img in range(0, 12000, 2): # go th  topo_ortho_generator.total_images
-        batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
-        # before each new epoch, do the hard mining
-        # y_pred = model.predict_on_batch(
-        #      [batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
-        #test_loss = contrastive_loss_per_pair(batchPairs_labels,y_pred)
-        # TODO: add the batch modification to do hard mining
-        logs = model.train_on_batch([batchPairs_images[:,0], batchPairs_images[:,1]], batchPairs_labels)
-        #write_log(callback, train_names, logs,  img/10 + j*1200)
-        epoch_logs[0] += logs[0]
-        epoch_logs[1] += logs[1]
-        # compute final accuracy on the training  set
-        if img%1000==0:
-            write_log(callback, ['train_loss average euclidean', ' average acc with threshold 0.5 euclidean'],
-                      map(lambda x: x / 500, epoch_logs), av_counter)
-            av_counter+=1
-            epoch_logs = [0, 0]
-
-            y_pred = model.predict_on_batch([batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
-            tr_acc = compute_accuracy(batchPairs_labels, y_pred)
-            print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
+tboard = TensorBoard(log_dir='./logs/hard_mining/', histogram_freq=0, write_graph=True)
 
 
-    model.save_weights('models/siamese_bw_euclidean_' + str(j)+'_weights.h5',save_format='tf')
+for j in range(1):
+    # num of epochs
+    # HARD MINING and KNN-recalculation each round starts here
+    hard_pairs = knn_distance_calculation(base_model,
+                                          path_2019='/data/margokat/alegoria/processed_images/moselle/57-2015-0915-6895-LA93-0M50-E080',
+                                          path_2004='/data/margokat/alegoria/processed_images/moselle_2004/57-2004-0915-6895-LA93-0M50-E080', bs =10)
+    topo_ortho_generator.addHardMiningIndexes(hard_pairs)
+    total_batches = len(hard_pairs)
+
+    X, y  = topo_ortho_generator.__getitem__(0)
+    pos_idx = 0
+    neg_idx = 1
+    a = np.squeeze(X[pos_idx, 0])
+    p = np.squeeze(X[pos_idx, 1])
+    n = np.squeeze(X[neg_idx, 1])
+    labels = batchPairs_labels
+    # print(a.shape)
+    random_example = random.randint(0, topo_ortho_generator.batch_size)
+    show_image_triplet(a[random_example], p[random_example], n[random_example])
+
+    # #then train the model on the hard samples
+    # for img in range(0, hard_pairs): # go th  topo_ortho_generator.total_images
+    #
+    #     model.fit_generator(generator=topo_ortho_generator,  steps_per_epoch= total_batches,
+    #                 use_multiprocessing=True, callbacks = [tboard], workers=6)
+    #
+    #
+    #     weights_conv = model.layers[1].get_weights()[0]
+    #     print("re-trained weights")
+    #     print(weights_conv)
+    #     model.save_weights('models/siamese_bw_euclidean_' + str(j)+'_weights.h5')
 
 
 
