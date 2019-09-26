@@ -218,3 +218,18 @@ def mathing_index_for_one_image(gt_idx, returned_queries_idx, distances = None):
     ''' This function just returns the matching coefficient if the returned query image matches '''
     correct_match = list(returned_queries_idx).index(gt_idx)
     return correct_match
+
+def get_hard(gt_idx, returned_query_indexes, image_labels):
+    """ function creates the dictionaty with image indexes and corresponding
+    'hard' pairs -> images which were neares neightbors in a wrongly located image
+    input: gt_index - list of the gt geolocalized images
+            returned_queries - knn returned
+            images_labels paths to images
+    output:
+    dictionary -> images_label  as key and correponding hard neightbors as values"""
+
+    hard_pairs = {}
+    for i in range(0,len(gt_idx)):
+        if returned_query_indexes[i][0][0] != gt_idx[i]: # if the correct match is not there
+            hard_pairs[image_labels[i]] = [j for j in returned_query_indexes[i][0] if j!=i]
+    return hard_pairs

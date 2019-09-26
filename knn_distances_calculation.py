@@ -48,6 +48,8 @@ def knn_distance_calculation(model, path_2004, path_2019, bs =10):
 
     features2019 = []
     features2004 = []
+    labels2019 = []
+    labels2004 = []
     # loop over the images in batches
     actual_batch_size = int(bs / 2)
     for (b, i) in enumerate(range(int(topo_ortho_generator2019.total_images/bs))):
@@ -65,11 +67,12 @@ def knn_distance_calculation(model, path_2004, path_2019, bs =10):
         X, batchLabels = topo_ortho_generator2019.__getitem__(i)
         features = model.predict(X, batch_size= actual_batch_size) # 2019
         features2019.append(features.reshape(features.shape[0],2048))
+        labels2019 = np.hstack([labels2019, batchLabels])
 
         X, batchLabels = topo_ortho_generator2004.__getitem__(i)
         features = model.predict(X, batch_size=actual_batch_size)  # 2019
         features2004.append(features.reshape(features.shape[0], 2048))
-
+        labels2004 = np.hstack([labels2004, batchLabels])
     # here I should already have all the features extracted
 
     # gt_indexes = test_labels_check(features2019, features2004) #check order
@@ -92,5 +95,5 @@ def knn_distance_calculation(model, path_2004, path_2019, bs =10):
     map = map_for_dataset(gt_indexes, knn_array, dist_array)
     print("Final MAP for the data is %f" % (map))
 
-    hard_pairs = get_hard(gt_indexes, knn_array)
+    hard_pairs = get_hard(gt_indexes, knn_array,  labels2004)
     return hard_pairs
