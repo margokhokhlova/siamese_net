@@ -83,7 +83,10 @@ class Hardmining_datagenerator(keras.utils.Sequence):
         self.n_channels_img = n_channels_img
         self.n_channels_lbl = n_channel_lbl
         self.hard_mining_indexes = []
+        self.hard_mining_images_ancors = []
         self.on_epoch_end()
+        self.n = 0
+        self.max = self.__len__()
 
     def getImagePaths(self):
         self.imagePaths2019 = list(paths.list_images(self.dataset_2019))
@@ -113,7 +116,7 @@ class Hardmining_datagenerator(keras.utils.Sequence):
         # for each image
         for j in range(0, self.batch_size):
             # find batch non-corresponding images
-            neg_index = np.random.randint(0,self.total_images-2)
+            neg_index = np.random.randint(1,self.total_images-2)
             if neg_index == i: #if it is the same image that the positive one
                 neg_index +=1
             if neg_index%2 == 1: #I want my negative label to be an image and not the label
@@ -126,34 +129,46 @@ class Hardmining_datagenerator(keras.utils.Sequence):
             batchPairs_labels+=[1,0]
 
         return np.array(batchImages), np.array(batchPairs_indexes), np.array(batchPairs_labels)
-
-    def addHardMiningIndexes(self, indexes):
-        """ to add the hardMining indexes for the network training """
-        self.hard_mining_indexes = indexes
-
     def __getitem__(self, index):
         'Generate one batch of data'
         # Generate indexes of the batch
-        i = self.hard_mining_indexes.keys[index]*2
-        hard_indexes = self.hard_mining_indexes[index]*2
-        batchImages = []
-        batchPairs_labels = []
-        ancor = process_image_pair(self.imagePaths2019[i], self.imagePaths2019[i + 1], self.n_channels_lbl,
-                                   self.im_size)
-        positive = process_image_pair(self.imagePaths2004[i], self.imagePaths2004[i + 1], self.n_channels_lbl,
-                                      self.im_size)
-        for j in hard_indexes:
-            # find batch non-corresponding images
 
-            negative = process_image_pair(self.imagePaths2019[j], self.imagePaths2019[j+1],self.n_channels_lbl, self.im_size)
+        indexes = list(range (index * self.batch_size, (index + 1) * self.batch_size))
 
-            # add pairs to the batch
-            batchImages+=[[ancor, positive], [ancor, negative]]
-            batchPairs_labels+=[1,0]
+        # Find list of IDs
+        list_IDs_temp = [self.hard_mining_images_ancors[k] for k in indexes]
+        list_hard_temp = [self.hard_mining_indexes[k] for k in indexes]
+        # Generate data
+        y = []
+        X = []
+        for i in range(0, len(list_IDs_temp)):
+            img, lbl = list_IDs_temp[i][0],list_IDs_temp[i][0].replace('img', 'lbl')
+            ancor = process_image_pair(img, lbl, self.n_channels_lbl, self.im_size)
+            img, lbl = list_IDs_temp[i][1],list_IDs_temp[i][1].replace('img', 'lbl')
+            positive = process_image_pair(img, lbl,self.n_channels_lbl, self.im_size)
+            random_hard = random.randint(0,len(list_hard_temp[i])-1)
+            img, lbl = list_hard_temp[i][random_hard], list_hard_temp[i][random_hard].replace('img', 'lbl')
+            negative = process_image_pair(img, lbl,self.n_channels_lbl, self.im_size)
+            X += [[ancor, positive], [ancor, negative]]
+            y += [1, 0]
+        return  [np.array(X)[:,0], np.array(X)[:,1]], np.array(y)
 
-        return np.array(batchImages), np.array(batchPairs_labels)
+    def addHardMiningIndexes(self, indexes):
+        """ to add the hardMining indexes for the network training """
+        self.hard_mining_indexes = list(indexes.values())
+        self.hard_mining_images_ancors = list(indexes.keys())
+        assert len(self.hard_mining_indexes) == len(self.hard_mining_images_ancors)
 
+    def __len__(self):
+        'Denotes the number of batches per epoch'
+        return int(np.floor(len(self.hard_mining_indexes) / self.batch_size))
 
+    def __next__(self):
+        if self.n >= self.max:
+            self.n = 0
+        result = self.__getitem__(self.n)
+        self.n += 1
+        return result
 
 if __name__ == '__main__':
     topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle', dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004')

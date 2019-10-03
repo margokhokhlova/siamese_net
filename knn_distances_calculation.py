@@ -1,10 +1,6 @@
-from dataloader_fused import fused_datagenerator
-import tensorflow as tf
-import os
-from keras import backend as K
 import numpy as np
 from dataloader_fused import fused_datagenerator
-from sklearn import preprocessing
+
 
 from sklearn.neighbors import NearestNeighbors
 from evaluate import map_for_dataset, get_hard
@@ -33,15 +29,10 @@ def get_keys_as_image_coordinates(keys):
     return modif_keys
 
 
-def scale_features(feat_vector):
-    feat_vector = np.asarray(feat_vector)
-    feat_vector = feat_vector.reshape(-1,2048)
-    X_scaled = preprocessing.normalize(feat_vector)
-    return X_scaled
-
-def knn_distance_calculation(model, path_2004, path_2019, bs =10):
-    topo_ortho_generator2019 = fused_datagenerator(dataset_im = path_2019, batch_size = bs, n_channel_lbl=1)
-    topo_ortho_generator2004 = fused_datagenerator(dataset_im = path_2004, batch_size = bs, n_channel_lbl=1)
+def knn_distance_calculation(model, path_2004, path_2019, bs =10, feat_shape = 512):
+    """ make a dummy run with a base model on the whole dataset and calculate KNN map@5"""
+    topo_ortho_generator2019 = fused_datagenerator(dataset_im = path_2019, n_channel_lbl=1,  batch_size = bs)
+    topo_ortho_generator2004 = fused_datagenerator(dataset_im = path_2004, n_channel_lbl=1,  batch_size = bs)
 
     topo_ortho_generator2019.getImagePaths()
     topo_ortho_generator2004.getImagePaths()
@@ -51,7 +42,7 @@ def knn_distance_calculation(model, path_2004, path_2019, bs =10):
     labels2019 = []
     labels2004 = []
     # loop over the images in batches
-    actual_batch_size = int(bs / 2)
+
     for (b, i) in enumerate(range(int(topo_ortho_generator2019.total_images/bs))):
         # extract the batch of images and labels, then initialize the
         # list of actual images that will be passed through the network
@@ -65,21 +56,22 @@ def knn_distance_calculation(model, path_2004, path_2019, bs =10):
         # volume
 
         X, batchLabels = topo_ortho_generator2019.__getitem__(i)
-        features = model.predict(X, batch_size= actual_batch_size) # 2019
-        features2019.append(features.reshape(features.shape[0],2048))
+        features = model.predict(X, batch_size= bs) # 2019
+        features2019.append(features.reshape(features.shape[0], feat_shape))
         labels2019 = np.hstack([labels2019, batchLabels])
 
         X, batchLabels = topo_ortho_generator2004.__getitem__(i)
-        features = model.predict(X, batch_size=actual_batch_size)  # 2019
-        features2004.append(features.reshape(features.shape[0], 2048))
+        features = model.predict(X, batch_size=bs)  # 2019
+        features2004.append(features.reshape(features.shape[0], feat_shape))
         labels2004 = np.hstack([labels2004, batchLabels])
     # here I should already have all the features extracted
 
     # gt_indexes = test_labels_check(features2019, features2004) #check order
-    data_base = scale_features(features2004)
-    query = scale_features(features2019)
+    data_base = np.asarray(features2004).reshape(-1,feat_shape)
+    query = np.asarray(features2019).reshape(-1,feat_shape)
+    assert(data_base.shape[0] == query.shape[0]), 'The database and query size is not equal in Knn dist calc file'
 
-    gt_indexes = np.arange(int(topo_ortho_generator2019.total_images/2))
+    gt_indexes = np.arange(query.shape[0])
     # knn
     knn_array = []
     dist_array = []
@@ -95,5 +87,5 @@ def knn_distance_calculation(model, path_2004, path_2019, bs =10):
     map = map_for_dataset(gt_indexes, knn_array, dist_array)
     print("Final MAP for the data is %f" % (map))
 
-    hard_pairs = get_hard(gt_indexes, knn_array,  labels2004)
-    return hard_pairs
+    hard_pairs = get_hard(gt_indexes, knn_array,  labels2004, labels2019)
+    return hard_pairs, map

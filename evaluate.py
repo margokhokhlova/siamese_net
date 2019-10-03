@@ -190,6 +190,7 @@ def compute_map_and_print(dataset, ranks, gnd, kappas=[1, 5, 10], writer=None, e
 def map_for_dataset(gt, returned_queries, distances = None):
     ''' My implementation for the MAP, when the correct image is always a single image
     input - list of gt labels gt and returned queries - list of lists of returned queries '''
+    assert len(gt)==len(returned_queries), "The number of HT indexes is not equal to the number of returned values!"
     av_pr = 0
     images_to_ignore = 0
     for i in range(len(gt)):
@@ -201,16 +202,16 @@ def map_for_dataset(gt, returned_queries, distances = None):
             element_rank = 0
 
 
-        if distances is not None:
+        # if distances is not None:
             # don't count the sample if all the distances are same - probably, it is a white image
-            if abs(distances[i][0][0] - distances[i][0][1] + (distances[i][0][1]-distances[i][0][2])) < 0.0002:
-                images_to_ignore +=1
-                continue
+            # if abs(distances[i][0][0] - distances[i][0][1] + (distances[i][0][1]-distances[i][0][2])) < 0.000000002:
+            #     images_to_ignore +=1
+            #     continue
         av_pr += 1/element_rank if element_rank > 0 else 0
 
 
-    print("Ignored %d empty images" %images_to_ignore)
-    return av_pr/(len(gt)-images_to_ignore)
+    # print("Ignored %d empty images" %images_to_ignore)
+    return av_pr/(len(gt))
 
 
 
@@ -219,7 +220,7 @@ def mathing_index_for_one_image(gt_idx, returned_queries_idx, distances = None):
     correct_match = list(returned_queries_idx).index(gt_idx)
     return correct_match
 
-def get_hard(gt_idx, returned_query_indexes, image_labels):
+def get_hard(gt_idx, returned_query_indexes, image_labels2004, image_labels2019):
     """ function creates the dictionaty with image indexes and corresponding
     'hard' pairs -> images which were neares neightbors in a wrongly located image
     input: gt_index - list of the gt geolocalized images
@@ -231,5 +232,5 @@ def get_hard(gt_idx, returned_query_indexes, image_labels):
     hard_pairs = {}
     for i in range(0,len(gt_idx)):
         if returned_query_indexes[i][0][0] != gt_idx[i]: # if the correct match is not there
-            hard_pairs[image_labels[i]] = [j for j in returned_query_indexes[i][0] if j!=i]
+            hard_pairs[image_labels2019[i], image_labels2004[i]] = [image_labels2004[j] for j in returned_query_indexes[i][0] if j!=i]
     return hard_pairs

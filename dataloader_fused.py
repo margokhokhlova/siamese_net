@@ -88,9 +88,9 @@ def process_image_pair(img, lbl,  n_channels_lbl):
 
 class fused_datagenerator(keras.utils.Sequence):
     'Generates data for Keras'
-    def __init__(self, dataset_2019, batch_size=20, n_channels_img=3, n_channel_lbl=1):
+    def __init__(self, dataset_im, batch_size=20, n_channels_img=3, n_channel_lbl=1):
         'Initialization'
-        self.dataset_2019 = dataset_2019
+        self.dataset_im = dataset_im
         self.batch_size = batch_size
         self.n_channels_img = n_channels_img
         self.n_channels_lbl = n_channel_lbl
@@ -103,7 +103,7 @@ class fused_datagenerator(keras.utils.Sequence):
         indexes = list(range (index * self.batch_size, (index + 1) * self.batch_size))
 
         # Find list of IDs
-        list_IDs_temp = [self.imagePaths2019[k] for k in indexes]
+        list_IDs_temp = [self.imagePaths[k] for k in indexes]
 
         # Generate data
         y = []
@@ -114,10 +114,10 @@ class fused_datagenerator(keras.utils.Sequence):
         return  np.array(X), np.array(y)
 
     def getImagePaths(self):
-        self.imagePaths2019 = list(paths.list_images(self.dataset_2019))
-        self.imagePaths2019.sort()  # sort in alphabetical order
-        self.total_images = len(self.imagePaths2019)
-        print("There are %d images in 2019."%(len(self.imagePaths2019)))
+        self.imagePaths = list(paths.list_images(self.dataset_im))
+        self.imagePaths.sort()  # sort in alphabetical order
+        self.total_images = len(self.imagePaths)
+        print("There are %d images in this dataset ."%(len(self.imagePaths)))
 
 
     def addHardMiningIndexes(self, indexes):
@@ -125,7 +125,7 @@ class fused_datagenerator(keras.utils.Sequence):
         self.hard_mining_indexes.vstack(indexes)
 
 if __name__ == '__main__':
-    topo_ortho_generator =  fused_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle')
+    topo_ortho_generator =  fused_datagenerator(dataset_im='/data/margokat/alegoria/processed_images/moselle')
     topo_ortho_generator.getImagePaths()
     X, path = topo_ortho_generator.__getitem__(11)
 
