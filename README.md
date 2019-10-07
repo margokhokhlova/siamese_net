@@ -1,4 +1,4 @@
-# siamese_net
+# siamese_net with hard-mining for image and vector fused data
 The code for my implementation of siamese networks applied to geo data. The model and dataloaders can be found in corresponding files.  
 The model is implemented using Keras, the architecture is shown below. There an alternative version without the max pooling as well, in this case maxplooling is replaced by 3 conv and a FC layer.
 ![alt text](https://github.com/margokhokhlova/siamese_net/blob/master/architecture.png)
