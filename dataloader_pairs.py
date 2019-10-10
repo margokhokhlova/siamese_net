@@ -74,7 +74,7 @@ def process_image_pair(img, lbl, n_channels_lbl, im_size):
 
 class Hardmining_datagenerator(keras.utils.Sequence):
     'Generates data for Keras'
-    def __init__(self, dataset_2019, dataset_2004, batch_size=4, n_channels_img=3, n_channel_lbl=1, im_size = (512,512)):
+    def __init__(self, dataset_2019, dataset_2004, batch_size=4, n_channels_img=3, n_channel_lbl=1, im_size = (512,512), pairs = True):
         'Initialization'
         self.dataset_2019 = dataset_2019
         self.dataset_2004 = dataset_2004
@@ -87,6 +87,7 @@ class Hardmining_datagenerator(keras.utils.Sequence):
         self.on_epoch_end()
         self.n = 0
         self.max = self.__len__()
+        self.pairs = pairs #or triplets
 
     def getImagePaths(self):
         self.imagePaths2019 = list(paths.list_images(self.dataset_2019))
@@ -133,25 +134,47 @@ class Hardmining_datagenerator(keras.utils.Sequence):
         'Generate one batch of data'
         # Generate indexes of the batch
 
-        indexes = list(range (index * self.batch_size, (index + 1) * self.batch_size))
+        if self.pairs:
+            indexes = list(range (index * self.batch_size, (index + 1) * self.batch_size))
 
-        # Find list of IDs
-        list_IDs_temp = [self.hard_mining_images_ancors[k] for k in indexes]
-        list_hard_temp = [self.hard_mining_indexes[k] for k in indexes]
-        # Generate data
-        y = []
-        X = []
-        for i in range(0, len(list_IDs_temp)):
-            img, lbl = list_IDs_temp[i][0],list_IDs_temp[i][0].replace('img', 'lbl')
-            ancor = process_image_pair(img, lbl, self.n_channels_lbl, self.im_size)
-            img, lbl = list_IDs_temp[i][1],list_IDs_temp[i][1].replace('img', 'lbl')
-            positive = process_image_pair(img, lbl,self.n_channels_lbl, self.im_size)
-            random_hard = random.randint(0,len(list_hard_temp[i])-1)
-            img, lbl = list_hard_temp[i][random_hard], list_hard_temp[i][random_hard].replace('img', 'lbl')
-            negative = process_image_pair(img, lbl,self.n_channels_lbl, self.im_size)
-            X += [[ancor, positive], [ancor, negative]]
-            y += [1, 0]
-        return  [np.array(X)[:,0], np.array(X)[:,1]], np.array(y)
+            # Find list of IDs
+            list_IDs_temp = [self.hard_mining_images_ancors[k] for k in indexes]
+            list_hard_temp = [self.hard_mining_indexes[k] for k in indexes]
+            # Generate data
+            y = []
+            X = []
+            for i in range(0, len(list_IDs_temp)):
+                img, lbl = list_IDs_temp[i][0],list_IDs_temp[i][0].replace('img', 'lbl')
+                ancor = process_image_pair(img, lbl, self.n_channels_lbl, self.im_size)
+                img, lbl = list_IDs_temp[i][1],list_IDs_temp[i][1].replace('img', 'lbl')
+                positive = process_image_pair(img, lbl,self.n_channels_lbl, self.im_size)
+                random_hard = random.randint(0,len(list_hard_temp[i])-1)
+                img, lbl = list_hard_temp[i][random_hard], list_hard_temp[i][random_hard].replace('img', 'lbl')
+                negative = process_image_pair(img, lbl,self.n_channels_lbl, self.im_size)
+                X += [[ancor, positive], [ancor, negative]]
+                y += [1, 0]
+            return  [np.array(X)[:,0], np.array(X)[:,1]], np.array(y)
+        elif not self.pairs:
+            indexes = list(range(index * self.batch_size, (index + 1) * self.batch_size))
+
+            # Find list of IDs
+            list_IDs_temp = [self.hard_mining_images_ancors[k] for k in indexes]
+            list_hard_temp = [self.hard_mining_indexes[k] for k in indexes]
+            # Generate data
+            X = []
+            y = []
+            for i in range(0, len(list_IDs_temp)):
+                img, lbl = list_IDs_temp[i][0], list_IDs_temp[i][0].replace('img', 'lbl')
+                ancor = process_image_pair(img, lbl, self.n_channels_lbl, self.im_size)
+                img, lbl = list_IDs_temp[i][1], list_IDs_temp[i][1].replace('img', 'lbl')
+                positive = process_image_pair(img, lbl, self.n_channels_lbl, self.im_size)
+                random_hard = random.randint(0, len(list_hard_temp[i]) - 1)
+                img, lbl = list_hard_temp[i][random_hard], list_hard_temp[i][random_hard].replace('img', 'lbl')
+                negative = process_image_pair(img, lbl, self.n_channels_lbl, self.im_size)
+                X += np.expand_dims(ancor, axis=0),  np.expand_dims(positive, axis=0), np.expand_dims(negative, axis=0)
+                y += [1, 0]
+                # .reshape(-1, self.im_size, self.im_size, self.n_channels_lbl)
+            return [X[0],X[1],X[2]], None
 
     def addHardMiningIndexes(self, indexes):
         """ to add the hardMining indexes for the network training """
