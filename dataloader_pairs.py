@@ -97,8 +97,20 @@ class Hardmining_datagenerator(keras.utils.Sequence):
         self.imagePaths2004 = list(paths.list_images(self.dataset_2004))
         self.imagePaths2004.sort()  # sort in alphabetical order
 
-        self.total_images = len(self.imagePaths2019)
-        print("There are %d images in 2019 and %d in 2004."%(len(self.imagePaths2019),len(self.imagePaths2004)))
+        self.total_images = int(len(self.imagePaths2019)/2)
+        print("There are %d images in 2019 and %d in 2004."%(len(self.imagePaths2019)/2,len(self.imagePaths2004)/2))
+
+    def createPairs(self):
+        """ creates an 4d array with matches im 2019, label 2019 - im 2004, label 2004 (based on indexes)"""
+        self.imagelookuptable = []
+        for i in range(0, len(self.imagePaths2019),2):
+            self.imagelookuptable.append([self.imagePaths2019[i], self.imagePaths2019[i+1],
+                                    self.imagePaths2004[i], self.imagePaths2004[i+1]])
+
+
+
+    def shuffleontheend(self):
+        random.shuffle(self.imagelookuptable)
 
 
     def preComputePairsBatches(self, batch_number):
@@ -110,43 +122,41 @@ class Hardmining_datagenerator(keras.utils.Sequence):
         batchPairs_indexes = []
         batchPairs_labels = []
 
-
-        i = batch_number # the image to process now
-        ancor = process_image_pair(self.imagePaths2019[i], self.imagePaths2019[i+1], self.n_channels_lbl, self.im_size)
-        positive = process_image_pair(self.imagePaths2004[i], self.imagePaths2004[i+1],self.n_channels_lbl, self.im_size)
+        i = batch_number * self.batch_size  # the image to process now
         # for each image
         for j in range(0, self.batch_size):
+            ancor = process_image_pair(self.imagelookuptable[i][0], self.imagelookuptable[i][1], self.n_channels_lbl,
+                                       self.im_size)
+            positive = process_image_pair(self.imagelookuptable[i][2], self.imagelookuptable[i][3], self.n_channels_lbl,
+                                          self.im_size)
             # find batch non-corresponding images
-            neg_index = np.random.randint(1,self.total_images-2)
-            if neg_index == i: #if it is the same image that the positive one
-                neg_index +=1
-            if neg_index%2 == 1: #I want my negative label to be an image and not the label
-                neg_index += 1
-            negative = process_image_pair(self.imagePaths2019[neg_index], self.imagePaths2019[neg_index+1],self.n_channels_lbl, self.im_size)
+            neg_index = np.random.randint(1,len(self.imagelookuptable))
+            negative = process_image_pair(self.imagelookuptable[neg_index][0], self.imagelookuptable[neg_index][1],self.n_channels_lbl, self.im_size)
 
             # add pairs to the batch
             batchImages+=[[ancor, positive], [ancor, negative]]
             batchPairs_indexes+=[[i, i], [i, neg_index]]
             batchPairs_labels+=[1,0]
+            i += 1 # update i
 
         return np.array(batchImages), np.array(batchPairs_indexes), np.array(batchPairs_labels)
     def __getitem__(self, index):
         'Generate one batch of data'
         # Generate indexes of the batch
 
-        if self.pairs:
+        if self.pairs: #case positive - negative image
             indexes = list(range (index * self.batch_size, (index + 1) * self.batch_size))
 
             # Find list of IDs
-            list_IDs_temp = [self.hard_mining_images_ancors[k] for k in indexes]
-            list_hard_temp = [self.hard_mining_indexes[k] for k in indexes]
+            list_anchors_temp = [self.hard_mining_images_ancors[k] for k in indexes]
+            list_hard_temp = [self.hard_mining_samples_indexes[k] for k in indexes]
             # Generate data
             y = []
             X = []
-            for i in range(0, len(list_IDs_temp)):
-                img, lbl = list_IDs_temp[i][0],list_IDs_temp[i][0].replace('img', 'lbl')
+            for i in range(0, len(list_anchors_temp)):
+                img, lbl = list_anchors_temp[i][0],list_anchors_temp[i][0].replace('img', 'lbl')
                 ancor = process_image_pair(img, lbl, self.n_channels_lbl, self.im_size)
-                img, lbl = list_IDs_temp[i][1],list_IDs_temp[i][1].replace('img', 'lbl')
+                img, lbl = list_anchors_temp[i][1],list_anchors_temp[i][1].replace('img', 'lbl')
                 positive = process_image_pair(img, lbl,self.n_channels_lbl, self.im_size)
                 random_hard = random.randint(0,len(list_hard_temp[i])-1)
                 img, lbl = list_hard_temp[i][random_hard], list_hard_temp[i][random_hard].replace('img', 'lbl')
@@ -159,7 +169,7 @@ class Hardmining_datagenerator(keras.utils.Sequence):
 
             # Find list of IDs
             list_IDs_temp = [self.hard_mining_images_ancors[k] for k in indexes]
-            list_hard_temp = [self.hard_mining_indexes[k] for k in indexes]
+            list_hard_temp = [self.hard_mining_samples_indexes[k] for k in indexes]
             # Generate data
             X = []
             y = []
@@ -178,9 +188,9 @@ class Hardmining_datagenerator(keras.utils.Sequence):
 
     def addHardMiningIndexes(self, indexes):
         """ to add the hardMining indexes for the network training """
-        self.hard_mining_indexes = list(indexes.values())
+        self.hard_mining_samples_indexes = list(indexes.values())
         self.hard_mining_images_ancors = list(indexes.keys())
-        assert len(self.hard_mining_indexes) == len(self.hard_mining_images_ancors)
+        assert len(self.hard_mining_samples_indexes) == len(self.hard_mining_images_ancors)
 
     def __len__(self):
         'Denotes the number of batches per epoch'
@@ -196,8 +206,8 @@ class Hardmining_datagenerator(keras.utils.Sequence):
 if __name__ == '__main__':
     topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle', dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004')
     topo_ortho_generator.getImagePaths()
-
-    for img in range(1):
+    topo_ortho_generator.createPairs()
+    for img in range(2):
         batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
         # display an image just to check
         pos_idx = np.where(batchPairs_labels==1)
@@ -210,6 +220,7 @@ if __name__ == '__main__':
        # print(a.shape)
         random_example = random.randint(0,topo_ortho_generator.batch_size)
         show_image_triplet(a[random_example],p[random_example],n[random_example])
+        topo_ortho_generator.shuffleontheend()
 
 
 
