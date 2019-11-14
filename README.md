@@ -9,4 +9,5 @@ The dataloaders are all custom, there are two scripts available: training siames
 
 The main files:
 model_for_siamese
-train_siamese_hard
+train_siamese - training without hard-mining
+train_siamese_hard - fine-tuning with hard-mining
