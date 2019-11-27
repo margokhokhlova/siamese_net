@@ -140,6 +140,49 @@ class Hardmining_datagenerator(keras.utils.Sequence):
             i += 1 # update i
 
         return np.array(batchImages), np.array(batchPairs_indexes), np.array(batchPairs_labels)
+
+
+    def preComputePairsBatchesHard(self, batch_number):
+        """ initial computation, just return a batch of A, P, N pairs, batch_number - the corresponding positive image index"""
+
+        # create initial positive and negative pairs where one is always a hard-sample
+
+        batchImages = []
+        batchPairs_indexes = []
+        batchPairs_labels = []
+
+        i = batch_number * self.batch_size  # the image to process now
+        # for each image
+        for j in range(0, self.batch_size):
+            ancor = process_image_pair(self.imagelookuptable[i][0], self.imagelookuptable[i][1], self.n_channels_lbl,
+                                       self.im_size)
+            positive = process_image_pair(self.imagelookuptable[i][2], self.imagelookuptable[i][3], self.n_channels_lbl,
+                                          self.im_size)
+            # find batch non-corresponding images
+            neg_index = np.random.randint(1,len(self.imagelookuptable))
+            negative = process_image_pair(self.imagelookuptable[neg_index][0], self.imagelookuptable[neg_index][1],self.n_channels_lbl, self.im_size)
+
+            # add pairs to the batch
+            batchImages+=[[ancor, positive], [ancor, negative]]
+            batchPairs_indexes+=[[i, i], [i, neg_index]]
+            batchPairs_labels+=[1,0]
+            i += 1 # update i
+        # add one hard image
+        
+        X, y = self.__getitem__(batch_number)
+        batchPairs_labels+=y
+        batchImages+=X
+
+
+
+        return np.array(batchImages), np.array(batchPairs_indexes), np.array(batchPairs_labels)
+
+
+
+
+
+
+
     def __getitem__(self, index):
         'Generate one batch of data'
         # Generate indexes of the batch
@@ -148,8 +191,14 @@ class Hardmining_datagenerator(keras.utils.Sequence):
             indexes = list(range (index * self.batch_size, (index + 1) * self.batch_size))
 
             # Find list of IDs
-            list_anchors_temp = [self.hard_mining_images_ancors[k] for k in indexes]
-            list_hard_temp = [self.hard_mining_samples_indexes[k] for k in indexes]
+            try:
+                list_anchors_temp = [self.hard_mining_images_ancors[k] for k in indexes]
+                list_hard_temp = [self.hard_mining_samples_indexes[k] for k in indexes]
+            except:
+                index = random.randint(0, len(self.hard_mining_images_ancors)//self.batch_size - self.batch_size)
+                indexes = list(range(index * self.batch_size, (index + 1) * self.batch_size))
+                list_anchors_temp = [self.hard_mining_images_ancors[k] for k in indexes]
+                list_hard_temp = [self.hard_mining_samples_indexes[k] for k in indexes]
             # Generate data
             y = []
             X = []
@@ -163,20 +212,20 @@ class Hardmining_datagenerator(keras.utils.Sequence):
                 negative = process_image_pair(img, lbl,self.n_channels_lbl, self.im_size)
                 X += [[ancor, positive], [ancor, negative]]
                 y += [1, 0]
-            return  [np.array(X)[:,0], np.array(X)[:,1]], np.array(y)
+            return X, y
         elif not self.pairs:
             indexes = list(range(index * self.batch_size, (index + 1) * self.batch_size))
 
             # Find list of IDs
-            list_IDs_temp = [self.hard_mining_images_ancors[k] for k in indexes]
+            list_anchors_temp = [self.hard_mining_images_ancors[k] for k in indexes]
             list_hard_temp = [self.hard_mining_samples_indexes[k] for k in indexes]
             # Generate data
             X = []
             y = []
-            for i in range(0, len(list_IDs_temp)):
-                img, lbl = list_IDs_temp[i][0], list_IDs_temp[i][0].replace('img', 'lbl')
+            for i in range(0, len(list_anchors_temp)):
+                img, lbl = list_anchors_temp[i][0], list_anchors_temp[i][0].replace('img', 'lbl')
                 ancor = process_image_pair(img, lbl, self.n_channels_lbl, self.im_size)
-                img, lbl = list_IDs_temp[i][1], list_IDs_temp[i][1].replace('img', 'lbl')
+                img, lbl = list_anchors_temp[i][1], list_anchors_temp[i][1].replace('img', 'lbl')
                 positive = process_image_pair(img, lbl, self.n_channels_lbl, self.im_size)
                 random_hard = random.randint(0, len(list_hard_temp[i]) - 1)
                 img, lbl = list_hard_temp[i][random_hard], list_hard_temp[i][random_hard].replace('img', 'lbl')

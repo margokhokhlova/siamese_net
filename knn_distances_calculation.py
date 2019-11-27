@@ -29,13 +29,14 @@ def get_keys_as_image_coordinates(keys):
     return modif_keys
 
 
-def knn_distance_calculation(model, path_2004, path_2019, bs =10, feat_shape = 512):
+def knn_distance_calculation(model, path_2004, path_2019, bs =10, feat_shape = 512, im_size = (512,512)):
     """ make a dummy run with a base model on the whole dataset and calculate KNN map@5"""
-    topo_ortho_generator2019 = fused_datagenerator(dataset_im = path_2019, n_channel_lbl=1,  batch_size = bs)
-    topo_ortho_generator2004 = fused_datagenerator(dataset_im = path_2004, n_channel_lbl=1,  batch_size = bs)
+    topo_ortho_generator2019 = fused_datagenerator(dataset_im = path_2019, n_channel_lbl=1,  batch_size = bs,target_size =  im_size)
+    topo_ortho_generator2004 = fused_datagenerator(dataset_im = path_2004, n_channel_lbl=1,  batch_size = bs, target_size =  im_size)
 
     topo_ortho_generator2019.getImagePaths()
     topo_ortho_generator2004.getImagePaths()
+
 
     features2019 = []
     features2004 = []
@@ -47,8 +48,8 @@ def knn_distance_calculation(model, path_2004, path_2019, bs =10, feat_shape = 5
         # extract the batch of images and labels, then initialize the
         # list of actual images that will be passed through the network
         # for feature extraction
-        print("[INFO] processing batch {}/{}".format(b + 1,
-            int(np.ceil(topo_ortho_generator2019.total_images / float(bs)))))
+        #print("[INFO] processing batch {}/{}".format(b + 1,
+        #    int(np.ceil(topo_ortho_generator2019.total_images / float(bs)))))
 
 
         # pass the images through the network and use the outputs as our
@@ -70,15 +71,17 @@ def knn_distance_calculation(model, path_2004, path_2019, bs =10, feat_shape = 5
     data_base = np.asarray(features2004).reshape(-1,feat_shape)
     query = np.asarray(features2019).reshape(-1,feat_shape)
     assert(data_base.shape[0] == query.shape[0]), 'The database and query size is not equal in Knn dist calc file'
-
+    num_img = len(data_base)
+    for i in range(num_img):
+        assert(labels2019[i][-31:]==labels2004[i][-31:]), 'Mismatch in the database labels, check it!'
     gt_indexes = np.arange(query.shape[0])
     # knn
     knn_array = []
     dist_array = []
     # fit the K-nn algo
-    neigh = NearestNeighbors(n_neighbors=5, algorithm='brute', metric='euclidean')
+    neigh = NearestNeighbors(n_neighbors=5, algorithm='brute', metric='cosine')
     neigh.fit(data_base)
-    num_img = len(data_base)
+
     for i in range(num_img):
         dist, indexes = neigh.kneighbors([query[i, :]])
         knn_array.append(indexes)  # workaround for structure

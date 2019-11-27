@@ -58,10 +58,10 @@ def show_image_fused(X):
     plt.show()
 
 
-def process_image_pair(img, lbl,  n_channels_lbl):
+def process_image_pair(img, lbl,  n_channels_lbl, target_size):
     """ fucntion just create a single RGBI image from the initial image + semantic image"""
-    image = load_img(img, target_size=(512, 512))
-    lbl = load_img(lbl, target_size=(512, 512))
+    image = load_img(img, target_size=target_size)
+    lbl = load_img(lbl, target_size=target_size)
     image = img_to_array(image)
     lbl = np.rot90(lbl, k=1, axes=(1, 0))  # this line turns the image 90 clockwise, needed for IGN data
 
@@ -88,14 +88,16 @@ def process_image_pair(img, lbl,  n_channels_lbl):
 
 class fused_datagenerator(keras.utils.Sequence):
     'Generates data for Keras'
-    def __init__(self, dataset_im, batch_size=20, n_channels_img=3, n_channel_lbl=1):
+    def __init__(self, dataset_im, batch_size=20, n_channels_img=3, n_channel_lbl=1, target_size = (512,512)):
         'Initialization'
         self.dataset_im = dataset_im
+        self.target_size = target_size
         self.batch_size = batch_size
         self.n_channels_img = n_channels_img
         self.n_channels_lbl = n_channel_lbl
         self.hard_mining_indexes = []
         self.on_epoch_end()
+
 
     def __getitem__(self, index):
         'Generate one batch of data'
@@ -109,7 +111,7 @@ class fused_datagenerator(keras.utils.Sequence):
         y = []
         X = []
         for i in range(0, len(list_IDs_temp)-1, 2):
-            X.append(process_image_pair(list_IDs_temp[i], list_IDs_temp[i+1], n_channels_lbl = self.n_channels_lbl))
+            X.append(process_image_pair(list_IDs_temp[i], list_IDs_temp[i+1], n_channels_lbl = self.n_channels_lbl, target_size = self.target_size))
             y.append(list_IDs_temp[i])
         return  np.array(X), np.array(y)
 

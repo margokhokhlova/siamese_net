@@ -231,6 +231,6 @@ def get_hard(gt_idx, returned_query_indexes, image_labels2004, image_labels2019)
 
     hard_pairs = {}
     for i in range(0,len(gt_idx)):
-        if returned_query_indexes[i][0][0] != gt_idx[i]: # if the correct match is not there
+        if returned_query_indexes[i][0][0] != gt_idx[i] and returned_query_indexes[i][0][1] != gt_idx[i]: # if the correct match is not the first 2 elements in the query: can be replaced with el in list
             hard_pairs[image_labels2019[i], image_labels2004[i]] = [image_labels2004[j] for j in returned_query_indexes[i][0] if j!=i]
     return hard_pairs

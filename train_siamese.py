@@ -100,19 +100,20 @@ def acc_keras(y_true, y_pred):
     pred = K.tf.cast(K.less(y_pred,0.5), y_true.dtype)
     return K.mean(K.equal(K.flatten(y_true), K.flatten(pred)))
 
-im_size = (256,256)
+im_size = (512,512)
 # get the data
 topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle',
                                                 dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004',
-                                                batch_size=13, n_channels_img=3, n_channel_lbl=1, im_size = im_size)
+                                                batch_size=2, n_channels_img=3, n_channel_lbl=1, im_size = im_size)
 topo_ortho_generator.getImagePaths()
+topo_ortho_generator.createPairs()
 # get one test batch
 batch_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(0)
 input_shape = batch_images[0,0].shape
 
 # get the model
 base_model = get_model(im_size[0], im_size[1], 4, pooling=False, weights='imagenet')
-
+base_model.load_weights('/home/margokat/projects/siamese_net/models/base_model_siamese_no_hard_9_weights_best.h5', by_name=True)
 input_a = Input(shape=input_shape)
 input_b = Input(shape=input_shape)
 # because we re-use the same instance `base_network = model`,
@@ -128,13 +129,9 @@ distance = Lambda(cosine_distance,
 
 
 model = Model([input_a, input_b], distance)
+
 model.summary()
-optimizer = SGD(lr=0.0001, clipvalue=1.0)
-try:
-    model = multi_gpu_model(model,  gpus=2)
-except:
-    print('multi-gpu failed, using a single gpu')
-    pass
+optimizer = Adam(lr = 0.0005)
 
 
 model.compile(loss=contrastive_loss, optimizer=optimizer, metrics= [acc_keras])
@@ -145,25 +142,29 @@ model.compile(loss=contrastive_loss, optimizer=optimizer, metrics= [acc_keras])
 #tboard = TensorBoard(log_dir='logs/', histogram_freq=0,
 #          write_graph=True)
 
-log_path = './logs/siamese_nonhard'
+log_path = './logs/siamese_tuned_512_hard'
 callback = TensorBoard(log_path)
 callback.set_model(model)
 train_names = ['train_loss cosine', 'acc with threshold 0.5 cosine']
 epoch_logs = [0,0]
 av_counter = 0
-# _, knn_res = knn_distance_calculation(base_model,
-#                                       path_2019='/data/margokat/alegoria/processed_images/moselle/',
-#                                       path_2004='/data/margokat/alegoria/processed_images/moselle_2004/',
-#                                       bs=10)
-for j in range(0, 20): # num of epochs
-    _, knn_res = knn_distance_calculation(base_model,
-                                          path_2019='/data/margokat/alegoria/processed_images/moselle/',
-                                          path_2004='/data/margokat/alegoria/processed_images/moselle_2004/',
-                                          bs=20, feat_shape=128, im_size = im_size)
 
-    write_log(callback, ['map@5'], [knn_res], j)
-    for img in range(0, 12000, 2): # go th  topo_ortho_generator.total_images
-        batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatches(img)
+for j in range(0, 25): # num of epochs
+    if j%2 == 0:
+
+        hard_pairs, knn_res = knn_distance_calculation(base_model,
+                                                  path_2019='/data/margokat/alegoria/processed_images/moselle/',
+                                                  path_2004='/data/margokat/alegoria/processed_images/moselle_2004/',
+                                                  bs=10, feat_shape=512, im_size = im_size)
+        topo_ortho_generator.addHardMiningIndexes(hard_pairs)
+        write_log(callback, ['map@5'], [knn_res], j)
+        _, knn_res = knn_distance_calculation(base_model,
+                                              path_2019='/data/margokat/alegoria/processed_images/basrhin_2019',
+                                              path_2004='/data/margokat/alegoria/processed_images/basrhin_2004', bs =10, feat_shape =512, im_size = im_size)
+
+        write_log(callback, ['map@5_valid'], [knn_res], j)
+    for img in range(0, int(topo_ortho_generator.total_images/topo_ortho_generator.batch_size)): # go th  topo_ortho_generator.total_images
+        batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatchesHard(img)
         #batchPairs_images[0, 1]=  batchPairs_images[0, 0] # add same images from the same year
         # #before each new epoch, do the hard mining
         # y_pred = model.predict_on_batch(
@@ -174,18 +175,17 @@ for j in range(0, 20): # num of epochs
         epoch_logs[0] += logs[0]
         epoch_logs[1] += logs[1]
         # compute final accuracy on the training  set
-        if img%1000==0:
-            write_log(callback, ['train_loss average euclidean', ' average acc with threshold 0.5 euclidean'],
-                      map(lambda x: x / 500, epoch_logs), av_counter)
-            av_counter+=1
-            epoch_logs = [0, 0]
+        
+    write_log(callback, ['train_loss average cosine', ' average acc with threshold 0.5 cosine'],
+              map(lambda x: x / img, epoch_logs), j)
+    epoch_logs = [0, 0]
 
-            # y_pred = model.predict_on_batch([batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
-            # tr_acc = compute_accuracy(batchPairs_labels, y_pred)
-            # print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
+    # y_pred = model.predict_on_batch([batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
+    # tr_acc = compute_accuracy(batchPairs_labels, y_pred)
+    # print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
 
 
-    base_model.save_weights('models/base_model_siamese_no_hard_' + str(j)+'_weights.h5')
+    base_model.save_weights('models/base_model_siamese_no_hard_tune_' + str(j)+'_weights.h5')
 
 
 
