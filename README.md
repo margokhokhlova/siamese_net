@@ -11,3 +11,4 @@ The main files:
 model_for_siamese
 train_siamese - training without hard-mining
 train_siamese_alternative -training with hard-mining and an binary cross-entropy or focal loss
+![alt text](https://github.com/margokhokhlova/siamese_net/blob/master/train_loss.png)
