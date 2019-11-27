@@ -10,4 +10,4 @@ The dataloaders are all custom, there are two scripts available: training siames
 The main files:
 model_for_siamese
 train_siamese - training without hard-mining
-train_siamese_hard - fine-tuning with hard-mining
+train_siamese_alternative -training with hard-mining and an binary cross-entropy or focal loss
