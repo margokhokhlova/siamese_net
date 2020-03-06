@@ -10,7 +10,6 @@ from knn_distances_calculation import knn_distance_calculation
 import tensorflow as tf
 import os
 from tensorboard_utils.tensorboard_utils import write_log, make_image
-
 from focal_loss import focal_loss
 
 def b_init(shape, name=None):
@@ -20,7 +19,7 @@ def b_init(shape, name=None):
 
 
 # The GPU id to use, usually either "0" or "1";
-os.environ["CUDA_VISIBLE_DEVICES"] = "0";
+os.environ["CUDA_VISIBLE_DEVICES"] = "1";
 config = tf.ConfigProto()
 session = tf.Session(config=config)
 K.set_session(session)
@@ -28,16 +27,15 @@ K.set_session(session)
 #  inspiration https://github.com/sorenbouma/keras-oneshot/blob/master/SiameseNet.ipynb
 im_size = (256,256)
 # get the data
-topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle',
-                                                dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004',
-                                                batch_size=6, n_channels_img=3, n_channel_lbl=1, im_size = im_size)
+topo_ortho_generator = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/meurthe_2019/',
+                                                dataset_2004='/data/margokat/alegoria/processed_images/meurthe_2004/',
+                                                batch_size=6, n_channels_img=3, n_channel_lbl=1, im_size = im_size, augmentation=True)
 topo_ortho_generator.getImagePaths()
 topo_ortho_generator.createPairs()
-topo_ortho_generator_valid = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/basrhin_2019/',
-                                                dataset_2004='/data/margokat/alegoria/processed_images/basrhin_2004/',
-                                                batch_size=10, n_channels_img=3, n_channel_lbl=1, im_size = im_size)
-topo_ortho_generator_valid.getImagePaths()
-topo_ortho_generator_valid.createPairs()
+topo_ortho_generator_valid = Hardmining_datagenerator(dataset_2019='/data/margokat/alegoria/processed_images/moselle/',
+                                                dataset_2004='/data/margokat/alegoria/processed_images/moselle_2004/',
+                                                batch_size=10, n_channels_img=3, n_channel_lbl=1, im_size = im_size, augmentation=True)
+
 
 
 # get one test batch
@@ -46,8 +44,6 @@ input_shape = batch_images[0, 0].shape
 
 # get the base model (back-bone)
 base_model = get_model(im_size[0], im_size[1], 4, pooling=False, weights='imagenet')  # version with or without pooling
-base_model.load_weights('/home/margokat/projects/siamese_net/models/base_model_siamese_prediction_12830_weights.h5',
-                        by_name=True)
 # because we re-use the same instance `base_network = model`,
 # the weights of the network
 # will be shared across the two branches
@@ -58,7 +54,9 @@ processed_a = base_model(input_a)
 processed_b = base_model(input_b)
 
 # and then the regression based on two outputs (here subtraction)
-L1_layer = Lambda(lambda tensors: K.abs(tensors[0] - tensors[1]))
+L1_layer = Lambda(lambda tensors: K.abs(tensors[0] - tensors[1])) #Lambda(lambda tensors: K.dot(tensors[0],tensors[1]))
+#TODO: https://www.pyimagesearch.com/2015/04/13/implementing-rootsift-in-python-and-opencv/ Here is the simple algorithm to extend SIFT to RootSIFT:
+#TODO:  In the past, the 2:4:6 rule (negative powers of 10) has worked quite well for me — using a learning rate of 10^-6 for the bottommost few layers, 10^-4 for the other transfer layers and 10^-2 for any additional layers we added.
 L1_distance = L1_layer([processed_a, processed_b])
 prediction = Dense(1, activation='sigmoid', bias_initializer=b_init)(L1_distance)
 model = Model(inputs=[input_a, input_b], outputs=prediction)
@@ -66,34 +64,36 @@ model = Model(inputs=[input_a, input_b], outputs=prediction)
 # except:
 #     pass
 
-optimizer = Adam(0.00001)
+optimizer = Adam(0.00005)
 # //TODO: get layerwise learning rates and momentum annealing scheme described in paperworking
-model.compile(loss=focal_loss, optimizer=optimizer, metrics=['acc'])
+model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['acc'])
 
-log_path = './logs/cosine_hard_prediction/fine_tune_128_focal'
-callback = TensorBoard(log_path)
-callback.set_model(model)
-
+log_path = './logs/cosine_hard_prediction/bw_label_128_crossval'
 callback = TensorBoard(log_path)
 callback.set_model(model)
 epoch_logs = [0, 0]
 av_counter = 0
 
-for j in range(25, 100):  # num of epochs
+for j in range(0, 100):  # num of epochs
     if j % 5 == 0:
 
         hard_pairs, knn_res = knn_distance_calculation(base_model,
-                                                       path_2019='/data/margokat/alegoria/processed_images/moselle',
-                                                       path_2004='/data/margokat/alegoria/processed_images/moselle_2004',
-                                                       bs=10, feat_shape=128, im_size=im_size)
+                                                       path_2019='/data/margokat/alegoria/processed_images/meurthe_2019/',
+                                                       path_2004='/data/margokat/alegoria/processed_images/meurthe_2004/',
+                                                       bs=10, feat_shape=128, im_size=im_size,n_channel_lbl=1)
         write_log(callback, ['map@5'], [knn_res], j)
         topo_ortho_generator.addHardMiningIndexes(hard_pairs)
-        hard_pairs_valid, knn_res_validation = knn_distance_calculation(base_model,
-                                                          path_2019='/data/margokat/alegoria/processed_images/basrhin_2019',
-                                                          path_2004='/data/margokat/alegoria/processed_images/basrhin_2004',
-                                                          bs=10, feat_shape = 128, im_size = im_size)
+        _, knn_res_val = knn_distance_calculation(base_model,
+                                                       path_2019='/data/margokat/alegoria/processed_images/moselle/',
+                                                       path_2004='/data/margokat/alegoria/processed_images/moselle_2004/',
+                                                       bs=10, feat_shape=128, im_size=im_size,n_channel_lbl=1)
+        write_log(callback, ['map@5_val'], [knn_res_val], j)
+        _, knn_res_test = knn_distance_calculation(base_model,
+                                                          path_2019='/data/margokat/alegoria/processed_images/basrhin_2019/',
+                                                          path_2004='/data/margokat/alegoria/processed_images/basrhin_2004/',
+                                                          bs=10, feat_shape = 128, im_size = im_size, n_channel_lbl=1)
 
-        write_log(callback, ['map@5_val'], [knn_res_validation], j)
+        write_log(callback, ['map@5_test'], [knn_res_test], j)
     for img in range(0, int(
             topo_ortho_generator.total_images / topo_ortho_generator.batch_size)):  # go th  topo_ortho_generator.total_images
         batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatchesHard(img)
@@ -117,4 +117,4 @@ for j in range(25, 100):  # num of epochs
         # print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
 
     if j>0 and j%5 ==0:
-        base_model.save_weights('models/base_model_siamese_prediction_128' + str(j) + '_weights.h5')
+        base_model.save_weights('models/base_model_siamese_prediction_bw_label_128_crossval_' + str(j) + '_weights.h5')
