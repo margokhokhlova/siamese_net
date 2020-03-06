@@ -14,7 +14,9 @@ model_for_siamese
 train_siamese - training without hard-mining (old version with contrastive loss, not stable)
 train_siamese_alternative -training with hard-mining and an binary cross-entropy or focal loss
 
+Accuracy metric used in map@5 for unique image correspondence retrieval.
 
 The final descriptor dimension can be tuned, I got the best results with the number 128, but 256 also seem to be working fine. The map@5 curves are shown below. 
+
 ![alt text](https://github.com/margokhokhlova/siamese_net/blob/master/map@5train.png) 
 
