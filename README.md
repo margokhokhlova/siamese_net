@@ -10,8 +10,7 @@ An example of the input image pairs (positive pairs) is shown below.
 ![alt text](https://github.com/margokhokhlova/siamese_net/blob/master/data.png) 
 
 The main files:
-model_for_siamese
-train_siamese - training without hard-mining (old version with contrastive loss, not stable)
+model_for_siamese - model definiton
 train_siamese_alternative -training with hard-mining and an binary cross-entropy or focal loss
 
 Accuracy metric used in map@5 for unique image correspondence retrieval.
