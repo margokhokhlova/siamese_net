@@ -5,20 +5,6 @@ from keras.models import Model,  Sequential, Input
 from keras.applications import imagenet_utils
 from keras.regularizers import l2
 from keras.layers.advanced_activations import LeakyReLU
-import argparse
-
-# construct the argument parser and parse the arguments
-# ap = argparse.ArgumentParser()
-# ap.add_argument("-imsize", "--img-size", default = 512, help="Input Image dimensions")
-# ap.add_argument("-c", "--channels", type=int, default=3,
-#     help="number of channels in the image: RGB = 3, RGBI = 4, etc")
-# ap.add_argument("-p", "--pooling", type=bool, default=True,
-#     help="with max pool or no?")
-# args = vars(ap.parse_args())
-# H = W = args['img_size']
-# C = args['channels']
-# pooling = args["pooling"]
-
 
 
 def get_model (H,W,C, pooling =True, weights = 'imagenet', fusion = 'conv',final_dimension = 128):
@@ -29,6 +15,8 @@ def get_model (H,W,C, pooling =True, weights = 'imagenet', fusion = 'conv',final
         C - number of color channels
         pooling - with or witout pooling
         weights - 'imagenet' or None
+        fusion - currently, only fusion model for multi-dim features
+        final_dimensions - the final dimensionality of the descriptor
         returns = non-compiled Keras Model
     '''
 
@@ -119,7 +107,7 @@ def get_model (H,W,C, pooling =True, weights = 'imagenet', fusion = 'conv',final
         if l.name == 'fusion':
             l.trainable = True
         # elif l.name == 'resnet50':
-        #      l.trainable = False
+        #      l.trainable = False  # uncomment if only train the new layers
         print(l.name, l.trainable)
 
 

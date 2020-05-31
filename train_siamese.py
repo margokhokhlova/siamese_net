@@ -26,7 +26,7 @@ config = tf.ConfigProto()
 session = tf.Session(config=config)
 K.set_session(session)
 
-#  inspiration https://github.com/sorenbouma/keras-oneshot/blob/master/SiameseNet.ipynb
+
 im_size = (256,256)
 # get the data
 topo_ortho_generator = Hardmining_datagenerator(dataset_2019= '/data/margokat/alegoria/processed_images/meurthe_2019',
@@ -75,6 +75,7 @@ callback.set_model(model)
 epoch_logs = [0, 0]
 av_counter = 0
 
+#main training loop
 for j in range(0, 120):  # num of epochs
     if j % 5 == 0:
         hard_pairs, knn_res = knn_distance_calculation(base_model,
@@ -107,24 +108,15 @@ for j in range(0, 120):  # num of epochs
     for img in range(0, int(
             topo_ortho_generator.total_images / topo_ortho_generator.batch_size)):  # go th  topo_ortho_generator.total_images
         batchPairs_images, batchPairs_indexes, batchPairs_labels = topo_ortho_generator.preComputePairsBatchesHard(img)
-        # batchPairs_images[0, 1]=  batchPairs_images[0, 0] # add same images from the same year
-        # #before each new epoch, do the hard mining
-        # y_pred = model.predict_on_batch(
-        #      [batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
-        # test_loss = contrastive_loss_np(batchPairs_labels,y_pred)
-        # # TODO: add the batch modification to do hard mining
         logs = model.train_on_batch([batchPairs_images[:, 0], batchPairs_images[:, 1]], batchPairs_labels)
         epoch_logs[0] += logs[0]
         epoch_logs[1] += logs[1]
         # compute final accuracy on the training  set
 
-    write_log(callback, ['train_loss average cosine', ' average acc with threshold 0.5 cosine'],
+    write_log(callback, ['train_loss average', ' accuracy average'],
               map(lambda x: x / img, epoch_logs), j)
     epoch_logs = [0, 0]
 
-        # y_pred = model.predict_on_batch([batchPairs_images[:, 0], batchPairs_images[:, 1]])  # temp solution, tp check later on
-        # tr_acc = compute_accuracy(batchPairs_labels, y_pred)
-        # print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
-
+    # the model is saved each 10 epochs
     if j>0 and j%10 ==0:
         base_model.save_weights('models/label_128_rgb_batchnorm_bce_main' + str(j) + '_weights.h5')
