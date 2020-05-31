@@ -21,7 +21,7 @@ import argparse
 
 
 
-def get_model (H,W,C, pooling =True, weights = 'imagenet', fusion = 'conv'):
+def get_model (H,W,C, pooling =True, weights = 'imagenet', fusion = 'conv',final_dimension = 128):
     ''' Loads the model, the core is Resnet50, the output of the last covolutional layer is the output,
     either with or without maxpooling, pre-trained or not.
     Parameters:
@@ -103,13 +103,13 @@ def get_model (H,W,C, pooling =True, weights = 'imagenet', fusion = 'conv'):
                                  name="conv_margo_2"))
             model.add(Activation('tanh'))
             model.add(BatchNormalization(axis=3, name='Batch_norm_Margo_2'))
-            model_top.add(Conv2D(filters=256, kernel_size=(3, 3), padding='same', kernel_initializer='he_normal',
-                                 name="conv_margo_3"))
-            model.add(Activation('tanh'))
-            model.add(BatchNormalization(axis=3, name='Batch_norm_Margo_3'))
-            shape_feat = 4 * 4 * 256
+            # model_top.add(Conv2D(filters=256, kernel_size=(3, 3), padding='same', kernel_initializer='he_normal',
+            #                      name="conv_margo_3"))
+            # model.add(Activation('tanh'))
+            #model.add(BatchNormalization(axis=3, name='Batch_norm_Margo_3'))
+            shape_feat = 4 * 4 * 512
             model.add(Flatten())
-            model.add(Dense(256, input_shape=(shape_feat,)))
+            model.add(Dense(final_dimension, input_shape=(shape_feat,)))
 
 
     model.summary()
