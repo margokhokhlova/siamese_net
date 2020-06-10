@@ -1,5 +1,8 @@
-# siamese_net with hard-mining for image and vector fused data
+# A siamese-like model with hard-mining for image and semantic fused data
+
 The code is the reference implementation of a  Siamese architecture applied for cross-temporal matrching of geographical  data used in the publication "Margarita Khokhlova,  Valerie Gouet-Brunet, Nathalie Abadie, and Liming Chen. “Cross-year multi-modal image retrieval  using siamese networks”. To appear at the proceesings of The 27th IEEE International Conference on Image Processing (2020).". 
+
+The architecture proposed is used to learn the descriptors for aerial images of the same geographic zone taken 15 years apart. Both images and semantic labels are used in an early fusion scenario to produce a compact descriptor, which can then be exploited in an image retrieval task.
 
 The model and dataloaders can be found in corresponding files.
 The model is implemented using Keras, the architecture is shown below. 
