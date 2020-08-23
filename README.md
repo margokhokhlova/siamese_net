@@ -17,13 +17,14 @@ An example of the input image pairs (positive pairs) is shown below.
 
 The main files:
 model_for_siamese.py - model definiton
-train_siamesee.py -training with hard-mining and an binary cross-entropy or focal loss
+train_siamese.py -training with hard-mining and an binary cross-entropy (recommended) or focal loss
 
-We do not provide the final dataset for this work but the unprocessed version of it can be found on the website of ign. The data are called BD TOPO and BD Ortho. https://www.data.gouv.fr/en/datasets/bd-ortho-r-50-cm/. 
+Unfortunately, we do not provide the final dataset for this work but the unprocessed version of it can be found on the website of ign. The data are called BD TOPO and BD Ortho. https://www.data.gouv.fr/en/datasets/bd-ortho-r-50-cm/. 
 
 Map@5 for unique image correspondence retrieval is used along with the unsuprvised KNN based on computed image descriptors.
 
-The final descriptor dimension can be tuned, I got the best results with the number 128, but 256 also seem to be working fine. The map@5 curves are shown below. 
+The final descriptor dimension can be tuned, I got the best results with the number 128 since it is smaller, but 256 also seem to give a similar performance. 512 tends to be less stable to train but we didn't perform a complete hyper-parameters search for this descriptor size. 
+The map@5 curves for 128 & 256 are shown below. 
 
 ![alt text](https://github.com/margokhokhlova/siamese_net/blob/master/map@5train.png) 
 
